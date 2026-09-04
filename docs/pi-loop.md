@@ -2,11 +2,11 @@
 
 > **Status: implemented, not yet exercised end to end.** The mechanisms this document describes are
 > shipped — both the `pi-renew` extension and the `/loop` prompt template (`prompts/loop.md`) exist in
-> this repo today, with the extension's unit suite green. What is still outstanding is a **live,
-> end-to-end loop run**: a `restart: none` run, and full loops with restarts under `continuation: ask`
-> and `continuation: auto`. So this document describes shipped behaviour that has not yet been
-> exercised in a full live loop. [`STATUS.md`](STATUS.md) tracks exactly what is proven, what is
-> outstanding, and the runtime-version question the live proofs are gated on.
+> this repo today, with the extension's unit suite green and its two live restart tests passing
+> against a real `pi`. What is still outstanding is a **live, end-to-end loop run**: a `restart: none`
+> run, and full loops with restarts under `continuation: ask` and `continuation: auto`. So this
+> document describes shipped behaviour that has not yet been exercised in a full live loop.
+> [`STATUS.md`](STATUS.md) records exactly what was verified, how, and what is left.
 
 A checklist-driven implementation loop for the `pi` CLI. You point it at a task list; it works one unit at a
 time, restarting its own context between analysing a unit and executing it, so the executing agent never
@@ -56,9 +56,10 @@ ln -sfn "$PWD/prompts/loop.md" ~/.pi/agent/prompts/loop.md
 #    that pi never loads them:
 ln -sfn "$PWD/skills" ~/.pi/agent/skills/dev
 
-# 5. If any flow you run uses this repo's project-local .pi/ resources, trust it (inside an
-#    interactive pi session; /loop itself does not need this):
-#    /trust
+# 5. Trust this checkout. /loop itself does not need it, but this repo's own live tests do — they
+#    load the extension by an explicit -e path inside the checkout, and an untrusted project's
+#    resources are ignored silently. Run /trust once inside an interactive pi session here, or add
+#    the path to ~/.pi/agent/trust.json.
 ```
 
 `/loop` is installed globally, so it works in every repo with no trust gate — while the file itself stays
