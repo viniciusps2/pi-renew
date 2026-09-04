@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Runtime state written by the extension into whatever project it runs in.
+.pi/loop/delegate-*.json
+.pi/loop/restart-inflight-*.json

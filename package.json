@@ -1,0 +1,34 @@
+{
+  "name": "pi-renew",
+  "version": "1.0.0",
+  "description": "A context-restart primitive for the pi coding agent, plus the /loop implementation protocol and the delegation skills it drives.",
+  "keywords": [
+    "pi",
+    "pi-package",
+    "pi-agent",
+    "extension",
+    "context-restart",
+    "delegate",
+    "loop"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viniciusps2/pi-renew.git"
+  },
+  "pi": {
+    "extensions": [
+      "./pi-extensions/pi-renew/pi-renew.ts"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "pi-subagent-rpc",
+  "private": true,
+  "type": "module"
+}
