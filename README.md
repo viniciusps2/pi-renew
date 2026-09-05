@@ -241,8 +241,8 @@ line is the design, never the file.
 
 ### Opt-in: brief-and-review
 
-Ask for it — *"apply with subagent review"*, *"brief and review each unit"*, *"delegate each unit"* —
-and a unit takes **two** turns instead of one:
+Ask for it — *"apply and review"*, *"apply with review"*, *"apply with subagent review"*, *"brief and
+review each unit"*, *"delegate each unit"* — and a unit takes **two** turns instead of one:
 
 ```
 ANALYSE turn                                     EXECUTE turn (fresh context)

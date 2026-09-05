@@ -132,7 +132,7 @@ want, and the protocol translates it into its parameters.
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
 | Don't restart at all | `do everything in this session, no context restart` |
-| Brief and review each unit | `apply with subagent review` — see [brief-and-review](#opt-in-brief-and-review) |
+| Brief and review each unit | `apply and review`, `apply with review`, `apply with subagent review` — see [brief-and-review](#opt-in-brief-and-review) |
 | Apply the change at the end | `archive the change when the list is empty` (OpenSpec) |
 | Get a report at the end | `summarize the results` |
 
@@ -348,8 +348,10 @@ reduced bar. The rule at length, with its bounds, is the 🔧 lane in
 
 ## Opt-in: brief-and-review
 
-Ask for it — *"apply with subagent review"*, *"brief and review each unit"*, *"delegate each unit"*,
-*"review each unit before committing"* — and a unit takes **two turns** instead of one.
+Ask for it — *"apply and review"*, *"apply with review"*, *"apply with subagent review"*, *"brief and
+review each unit"*, *"delegate each unit"*, *"review each unit before committing"* — and a unit takes
+**two turns** instead of one. Anything that asks for the work to be *applied and reviewed*, rather
+than just done, turns it on.
 
 | | The plain loop | brief-and-review |
 |---|---|---|
@@ -507,8 +509,8 @@ line records it. Install `pi-subagents` if you want a real child session per uni
 this is simply how it works: the turn does its own work unless you asked for it to be delegated.)
 
 **It wrote no brief, and reviewed nothing.**
-The plain loop is the default. Add "apply with subagent review" to the request for the two-turn
-brief-and-review mode.
+The plain loop is the default. Add "apply and review" — or "apply with subagent review" — to the
+request for the two-turn brief-and-review mode.
 
 **It added checkboxes to my task file.**
 The file listed units but had nothing to tick, and the exit test and the no-progress guard both read that

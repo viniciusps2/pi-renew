@@ -32,7 +32,7 @@ Map it onto the parameters below by intent — there are no flags.
 | `one turn only`, `do one unit and stop` | a budget of 1 |
 | `no context restart`, `do everything in this session` | No-restart mode |
 | no such phrase | restart `new-session`, passed explicitly every turn |
-| `apply with subagent review`, `brief and review each unit`, `delegate each unit` | **brief-and-review mode** — opt-in, below |
+| `apply and review`, `apply with review`, `apply with subagent review`, `brief and review each unit`, `delegate each unit` | **brief-and-review mode** — opt-in, below |
 | `summarize the results`, `report at the end` | produce The final report |
 | nothing about a summary | no report — end with a short completion statement |
 
@@ -286,11 +286,13 @@ extension's safety net, and not optional because the request asked for no restar
 
 ## Opt-in: brief-and-review mode
 
-**Turn it on by asking for it** — "apply with subagent review", "brief and review each unit",
-"delegate each unit to a sub-agent", "review each unit before committing". Reach for it when the work
-has acceptance criteria you are asked to verify, when each unit should land as its own reviewable
-commit, when the units are large enough that analysing and executing one in the same context degrades
-both, or when the run is unattended and nothing else will check the result. The plain loop is the
+**Turn it on by asking for it** — "apply and review", "apply with review", "apply with subagent
+review", "brief and review each unit", "delegate each unit to a sub-agent", "review each unit before
+committing". Any request that asks for the work to be *applied and reviewed*, rather than just done,
+is asking for this mode. Reach for it when the work has acceptance criteria you are asked to verify,
+when each unit should land as its own reviewable commit, when the units are large enough that
+analysing and executing one in the same context degrades both, or when the run is unattended and
+nothing else will check the result. The plain loop is the
 default because most work does not need this; this mode costs a restart and two sessions per unit.
 
 **What changes: one unit takes two turns.** Both count against the same budget, so a budget of 10 is
