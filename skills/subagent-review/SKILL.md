@@ -61,7 +61,8 @@ git diff --stat                   # and `git diff --stat HEAD` if the agent comm
 
 - **Diff this against the brief's allowed-files table.** A file outside it is a finding regardless of
   whether the change is good. A file *inside* it that was never touched is also a finding — a
-  deliverable may be missing.
+  deliverable may be missing. (Your **own** 🔧 repair to a blocking defect is the one sanctioned way
+  a file outside the table changes — Phase 5 — and it lands as its own commit, reviewed as one.)
 - **Did the agent commit?** If so the work is still reviewable, but check the commit contains only
   the intended change and that nothing was rebased or amended in shared history.
 - **Were tracking documents edited?** A ticked box you did not tick is an unverified assertion —
@@ -239,9 +240,33 @@ Anything you or the agent noticed that is *better*, rather than *wrong*, goes th
 
 An opportunistic improvement is never on the unit's critical path, so deferring one cannot make the
 unit wrong — and halting an unattended loop for an opportunity is the wrong trade. **This carve-out
-covers improvements only.** A correctness finding, a blocked deliverable, an ambiguity about intent,
-or a second review escalation of the same unit still stops the loop in every mode. If you are
-reaching for this rule to avoid stopping, what you are holding is not an improvement.
+covers improvements only.** A correctness finding, an ambiguity about intent, or a second review
+escalation of the same unit still stops the loop in every mode. If you are reaching for this rule to
+avoid stopping, what you are holding is not an improvement.
+
+### The blocked case — 🔧 repair, or a decision
+
+A blocker the child reported, or a gate failure the unit did not introduce, is triaged separately and
+**before** it counts as a hard stop. Prove it is pre-existing — reproduce it on something that
+references none of the unit's code, or on a clean tree, and name the first failure in the chain; if
+that is the unit's own code it is a correctness finding, and the loop stops. Then ask the six 🔴
+triggers of the **shortest** correct repair (spec-fixed decision · public surface · dependency ·
+protocol · spec delta · test strength). **None of them → repair it**, outside the allowed-files table
+and in other units' files if that is where it lives, as its own `fix:` commit before the unit's, with
+the gate re-run after and an `RP-` entry in the handover. **Any of them → stop and report**, in every
+mode. Full lane, bounds and entry format:
+[IMPROVEMENT-BUDGET.md](../subagent-brief/IMPROVEMENT-BUDGET.md#-the-repair-lane--blocked-is-not-the-same-as-undecidable).
+
+Note which side of the line does the work here: the **file boundary** never decides it — only whether
+the repair changes the design does. And the third option is not available to you: **accepting the
+unit on the part of the gate that passed**, with the failing criterion deferred to a later unit,
+changes what "done" means for a unit somebody specified. That is a decision even where the repair
+would not have been.
+
+A blocked verdict that arrives *from the child* is an input to this triage, not the end of it —
+re-derive it from your own run, and if the child wrote its blockage into a tracking document it was
+told not to touch, revert that edit and restate the finding yourself. It is a crossed constraint
+worth recording even when the technical claim holds up.
 
 ## Failure modes of the review itself
 

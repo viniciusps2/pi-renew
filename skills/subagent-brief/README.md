@@ -76,5 +76,5 @@ commit is the load-bearing half: it is what keeps the batch's own diff reviewabl
 | [BRIEF-TEMPLATE.md](BRIEF-TEMPLATE.md) | The nine-section brief, ready to fill in |
 | [REPORT-CONTRACT.md](REPORT-CONTRACT.md) | The report the sub-agent must return — the seam with `subagent-review` |
 | [VERIFICATION-MENU.md](VERIFICATION-MENU.md) | Which check earns its cost on which change, and the command for it in each ecosystem |
-| [IMPROVEMENT-BUDGET.md](IMPROVEMENT-BUDGET.md) | What an agent may improve on its own authority, what it proposes, and what it escalates |
+| [IMPROVEMENT-BUDGET.md](IMPROVEMENT-BUDGET.md) | What an agent may improve on its own authority, what it proposes, what it escalates — and the 🔧 lane: what it may repair *outside* the allowed-files table when a blocking defect is not the unit's own |
 | [GATE-PROFILE.md](GATE-PROFILE.md) | Per-project gate commands, baselines and known trap signatures |

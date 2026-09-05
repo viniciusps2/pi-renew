@@ -82,14 +82,17 @@ wait.
 3. Invoke `/skill:subagent-brief` to write that unit's delegation brief. **Size the unit first** —
    T0 mechanical, T1 local, T2 behavioural, T3 stateful/protocol — and put the tier, the checks it
    selects and the checks it rules out at the top of the brief. The tier travels to the execute
-   phase in the brief; nothing else carries it across the restart.
+   phase in the brief; nothing else carries it across the restart. Read the handover's `## Repairs`
+   entries against this unit before you size it: a 🔧 repair from an earlier cycle may already have
+   done part of what the task document still describes as pending, which is scope the staleness
+   sweep must catch and the brief must rule out explicitly.
 4. Write reviewer notes for the unit, applying `/skill:subagent-review`'s criteria to what the brief
    asks for, **at the depth the tier selects**. Name the checks you are deliberately not asking for,
    with the reason — a check skipped silently and a check forgotten look identical next cycle.
 5. Write or update the handover with: the unit you selected, its tier, the brief and reviewer-notes
    paths, which units the task list has open right now (the no-progress guard has nothing to compare
-   against next cycle otherwise), any unresolved `## Decisions pending` entries carried forward, and
-   exactly one `Phase:` line — `Phase: execute` once all three documents are complete,
+   against next cycle otherwise), any unresolved `## Decisions pending` entries and any `## Repairs`
+   entries carried forward, and exactly one `Phase:` line — `Phase: execute` once all three documents are complete,
    `Phase: analyse` if you are restarting before they are.
 
 Unless the request names other locations, write the brief and notes beside the handover as
@@ -133,7 +136,22 @@ is what makes this path resumable.
    it did not look.
 7. Minor findings — fix them yourself in this turn. Major findings — write a new brief for what
    remains and launch another child (back to step 3).
-8. **Triage the improvements** — anything *better* rather than *wrong*, from the child's report or
+8. **If the unit is blocked by something outside it** — the child reported it could not finish, or
+   your own gate run is red for something the unit did not introduce — triage it through
+   `IMPROVEMENT-BUDGET.md`'s **🔧 repair lane** before treating it as a hard stop. First *prove* the
+   defect is pre-existing: reproduce it on something referencing none of the unit's code, or on a
+   clean tree, and name the first failure in the chain — if that is the unit's own code you have a
+   correctness finding, and the loop stops. Then ask whether the **shortest** correct repair changes
+   a spec-fixed decision, the public surface, a dependency, the protocol, the spec delta, or a test's
+   strength. **None of them → repair it yourself**, outside the allowed-files table and in other
+   units' files if that is where it lives, as its own `fix:` commit *before* the unit's, re-running
+   the gate after. **Any of them → that is a real decision: stop and report it, in every mode.** Two
+   candidate repairs are a decision only when they *disagree about the design*; two spellings of one
+   mechanical fix are not — take the narrower, and say which in the handover. Never take the third
+   option of ticking the unit against a reduced bar: deferring a failing acceptance criterion is a
+   decision even where the repair would not have been. Either way, record it in the handover as an
+   `RP-` entry, naming which later units the repair changes.
+9. **Triage the improvements** — anything *better* rather than *wrong*, from the child's report or
    your own reading, through the lanes in `subagent-brief`'s `IMPROVEMENT-BUDGET.md`:
    **🟢** behaviour-preserving, inside the allowed-files table, ≤ ~15 net lines, no exported
    signature or dependency change, existing tests unchanged, contradicts nothing the spec fixes →
@@ -145,13 +163,15 @@ is what makes this path resumable.
    recommendation. **Under `auto`, do not stop**: append it to the handover's `## Decisions pending`
    section, name it in your report line, and carry on. An opportunity is never on the unit's
    critical path, so deferring one cannot make the unit wrong.
-9. Close the unit in the task list — tick its checkbox, or whatever "done" is in that file's format.
-   Nothing else does this, and both Termination checks depend on it.
-10. Update the handover with what you found, any gotchas, next steps, and any new
-    `## Decisions pending` entry from step 8. Keep `Phase: execute` until the unit is committed.
-11. Commit the unit's change, with the task-list edit and handover update in that same commit; push
-    only if the request asks for it. A 🟢 improvement from step 8 is its **own** commit, after this
-    one — never folded in, so the unit's diff stays reviewable as the unit.
+10. Close the unit in the task list — tick its checkbox, or whatever "done" is in that file's format.
+    Nothing else does this, and both Termination checks depend on it.
+11. Update the handover with what you found, any gotchas, next steps, any new `## Decisions pending`
+    entry from step 9, and any `## Repairs` entry from step 8. Keep `Phase: execute` until the unit
+    is committed.
+12. Commit the unit's change, with the task-list edit and handover update in that same commit; push
+    only if the request asks for it. A 🔧 repair from step 8 is its own commit **before** this one and
+    a 🟢 improvement from step 9 its own commit **after** it — never folded in, so the unit's diff
+    stays reviewable as the unit.
 
 Steps 1–5 are a rule about *order*, not just about which files get read: reviewer notes read earlier
 bias how the child's task is framed instead of judging the result, and anything read beyond the
@@ -188,11 +208,20 @@ unattended `auto` run can.
 - a commit or push fails;
 - the provenance ordinal reaches the restart budget the request named (unbounded if it named none).
 
-A **🔴 improvement opportunity is not a hard stop under `auto`** — the execute phase's step 8
+A **🔴 improvement opportunity is not a hard stop under `auto`** — the execute phase's step 9
 defers it to the handover. That carve-out covers opportunistic improvements only: a correctness
-finding, a blocked deliverable, an ambiguity about intent, or a second escalation of the same unit
-still stops the loop in every mode. If you are reaching for the carve-out to avoid stopping, what you are holding is not an
+finding, an ambiguity about intent, or a second escalation of the same unit still stops the loop in
+every mode. If you are reaching for the carve-out to avoid stopping, what you are holding is not an
 improvement.
+
+**A blocked unit is not a hard stop until the 🔧 repair lane says so.** Step 8 is what decides that,
+and it decides on one question only: *does the shortest correct repair change the design?* A
+mechanical repair — the build, the wiring, a fixture, a registration another unit left broken — is
+not a decision for the user, however far outside the unit's allowed files it lives, and the loop
+repairs it and carries on. A repair that would change a spec-fixed decision, the public surface, a
+dependency, the protocol or a test's strength **is** the decision, and the loop stops for it in every
+mode. Files belong to units; the design belongs to the spec. Crossing a file boundary to unblock the
+tree is bookkeeping. Crossing the spec to unblock the tree is the thing you must always stop for.
 
 ## No-restart mode
 

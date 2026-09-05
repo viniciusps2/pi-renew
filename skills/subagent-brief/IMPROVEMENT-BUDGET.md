@@ -1,9 +1,10 @@
 # The improvement budget
 
 What an agent may improve **on its own authority** while implementing or reviewing a batch, what it
-must propose instead, and what it must escalate. Shared by `subagent-brief` (which states the budget
-as a constraint), `subagent-review` (which triages what came back), and the `/loop` driver (which
-decides where an escalation goes).
+must propose instead, and what it must escalate — plus, in the 🔧 lane at the end, the one thing it
+may **repair outside its allowed files**, because the unit cannot land until somebody does. Shared by
+`subagent-brief` (which states the budget as a constraint), `subagent-review` (which triages what
+came back), and the `/loop` driver (which decides where an escalation goes).
 
 The problem it solves: without a sanctioned path, a real improvement either gets **smuggled into the
 functional diff** — where it destroys the review surface, because you can no longer tell the feature
@@ -11,7 +12,9 @@ from the cleanup — or gets **dropped**, because nobody had authority to act on
 
 **The design in the spec always wins.** Nothing in this file authorises a change to a decision the
 spec, the design document or the brief has fixed. An "improvement" that contradicts one of those is
-a design change; it goes to 🔴 regardless of its size.
+a design change; it goes to 🔴 regardless of its size. This governs the 🔧 repair lane too: being
+blocked earns an agent the right to **fix a broken tree**, never the right to **redesign the
+solution** in order to get itself moving again.
 
 ---
 
@@ -85,7 +88,9 @@ unattended loop for an opportunity is the wrong trade.
 stops, and must never be used to keep an unattended loop moving past one:
 
 - a **correctness finding** in the unit's own work still stops the loop;
-- a **blocked deliverable** — something the unit needs that you cannot do — still stops the loop;
+- a **blocked deliverable** — something the unit needs that you cannot do — stops the loop **unless
+  the 🔧 repair lane below clears it first**. Being blocked and needing a decision are not the same
+  state, and only the second is a question for a person;
 - a **conflict, an ambiguity about intent, or a second review escalation of the same unit** still
   stops the loop.
 
@@ -108,6 +113,140 @@ One block per deferred 🔴, in the handover, so the queue survives the cold sta
 Carry unresolved `DP-` entries forward into every later handover. Resolving one is a **user
 decision**, and it becomes its own unit in the task list — never a silent fold-in to an unrelated
 batch.
+
+---
+
+## 🔧 The repair lane — blocked is not the same as undecidable
+
+The three lanes above triage work that is **optional**. This one triages work that is not: a defect
+**outside** the unit's allowed files that stops the unit being verified or landed at all. It is the
+only rule here that authorises changing a file the brief forbade, and it exists because two states
+get conflated that need completely different things:
+
+| The unit cannot proceed until… | What it needs |
+|---|---|
+| something **mechanical** is repaired | the repair. Nobody has a decision to make |
+| someone **chooses between designs** | the user. Stop, in every mode, including `auto` |
+
+**The shape it covers.** The unit's own work is right; the gate is red for something the unit did not
+introduce — a duplicate registration that only fails once a consumer resolves it by type, a fixture
+an earlier unit left broken, a neighbouring module that no longer compiles, a stale wiring nobody has
+exercised since it landed. The repair almost always lives in files belonging to a unit already
+ticked, or to one not yet reached. **That is not a reason to stop.** The allowed-files table exists
+to keep a review surface readable, not to make a broken tree somebody else's problem.
+
+### Step 1 — Prove it is pre-existing, before repairing anything
+
+An agent that "unblocks" its own bug has laundered a correctness finding, which is a hard stop. So
+establish, with evidence you can paste into the handover, that the failure is **not** the unit's:
+
+- reproduce it on something that references **none** of the unit's code — a test from an earlier unit
+  is the strongest form available;
+- or reproduce it on a clean tree: stash the change including untracked files, run the gate, restore;
+- and name the **first** failing thing in the chain. If that is the unit's own code, you have a
+  correctness finding, not a blocker, and the loop stops.
+
+Without that evidence, treat the failure as the unit's own. The asymmetry is deliberate — repairing
+what you just broke and calling it a repair is the one failure this lane could otherwise introduce.
+
+**A child's blocked verdict is an input to this step, never the output of it.** The claim needing
+independent proof is precisely the one the child is least able to make about itself. If it also wrote
+its blockage into a tracking document it was told not to touch — a banner in the handover, a note in
+the task list — revert that edit and restate the finding in your own words from your own run. The
+handover is the driver's; a child that edits it has crossed a constraint, and that stays worth noting
+in the review even when its technical claim turns out to be right.
+
+### Step 2 — Apply the design-neutrality test
+
+Ask it of the **shortest correct repair**, not of the repair you would prefer. Every trigger is a 🔴
+trigger, in the same words:
+
+- does it change a decision the **spec, the design document or the brief** fixes?
+- does it change the **public surface** — an export, a `public`/`protected` member, a tool parameter,
+  a CLI flag or command name, an environment variable, a persisted or wire shape?
+- does it add or upgrade a **dependency**?
+- does it touch the **protocol or the state machine** — restart, handshake, guard, lifecycle?
+- would it require a **spec delta update** to be correct?
+- does it **weaken a test** — a deleted assertion, a loosened matcher, a `skip`, a simplified double?
+
+**All six "no" → repair it.** Outside the allowed-files table, in another unit's files, without
+asking, under every continuation mode. It is mechanical; there is no decision in it for anyone to
+make, and stopping an unattended loop to be told "yes, fix the build" is the same wrong trade as
+stopping it for a 🔴 improvement.
+
+**Any "yes" → the repair *is* the decision.** Stop and report, in every mode, with the step-1 evidence
+and the options you can see. This is the line the lane must never cross.
+
+**Two candidate repairs are not automatically a "yes".** Ask what actually differs between them:
+
+- **Different spellings of the same mechanical fix** — `@Primary` on the config's bean or
+  `@Qualifier` on the one consumer; the guard in the caller or in the callee — is **not** a decision.
+  Take the narrower, more local one, or the one matching what the surrounding code already does, and
+  record which and why in the `RP-` entry. Stopping to be asked "which annotation?" is the same wrong
+  trade as stopping to be asked "may I fix the build?".
+- **Repairs that imply different designs, or different behaviour** — one restores the intended wiring
+  and the other changes which implementation wins in production — **is** a decision. Stop.
+
+The question is never "is there more than one way to do this", it is "do the ways disagree about the
+design".
+
+### Step 3 — Land it as a repair, not as part of the unit
+
+- **The smallest change that removes the blockage.** Not the neighbourhood's cleanup, not the
+  refactor you would do if those files were your unit. Anything beyond the blockage is 🟡: record it,
+  do not do it.
+- **Its own commit** (`fix:`), **before** the unit's, carrying the step-1 evidence in the message.
+  Re-run the gate after the repair and again after the unit. The unit's own diff must still read as
+  the unit.
+- **Do it yourself, or brief a new child** whose allowed-files table names exactly the repair's
+  files. Never widen the original child's table mid-run — a child already told to stop and report is
+  the wrong place to re-open scope.
+- **Add the cheapest check that would have caught it**, where the tier and the defect allow. Often
+  the test from step 1 already is that check, once something actually runs it. If you add none, say
+  why.
+- **Record it in the handover** as an `RP-` entry, and name it in the turn's report line. A repair
+  nobody mentions reads as scope creep in the next reviewer's diff.
+
+### When to stop anyway
+
+- the repair does not turn the gate green — you are debugging a broken baseline, not executing a
+  unit;
+- a second, unrelated blocker surfaces in the same unit;
+- the repair grows to roughly the size of the unit itself. At that point it **is** a unit: stop, and
+  let it be scheduled as one.
+
+### The `## Repairs` entry
+
+One block per repair, in the handover, beside `## Decisions pending`:
+
+```markdown
+### RP-<n>. <one-line title> — 🔧 repaired during <unit>, <date>
+**Symptom:** <the failure, and the exact command that printed it>.
+**Pre-existing because:** <step-1 evidence — what reproduced it with none of the unit's code>.
+**Root cause:** <where it actually is, and which unit landed it>.
+**Repair:** <the change>, in `<files outside the allowed-files table>`. Commit `<sha>`.
+**Design-neutral because:** <the six triggers, answered>.
+**Affects later units:** <whose scope this shrank or changed — or "none">.
+```
+
+**The last line is the one that gets forgotten.** A repair inside a not-yet-reached unit's files
+changes what that unit still has to do, while its brief will be written from a task document that
+still describes the work as pending. Carry `RP-` entries forward exactly like `DP-` entries, and run
+the staleness sweep against them when that unit comes up.
+
+### What a repair is never a licence to do
+
+**Widen the gate.** A latent defect that survived several units usually means the gate has a blind
+spot — a suite that never starts a real context, a module nothing type-checks, an integration test
+no ticked unit ever ran. Repairing the defect is mechanical; changing what "done" measures is a
+decision about the project's standard of proof. Record the blind spot as a 🔴 in `## Decisions
+pending`, with the evidence, and carry on.
+
+**Narrow the unit.** The tempting alternative to a repair is always the same: tick the unit on the
+part of the gate that *is* green and defer the failing criterion to a later unit. That is the mirror
+image of a repair, and unlike a repair it is always a decision — it changes what "done" means for a
+unit somebody specified. When a design-neutral repair exists, take it. When it does not, **stop**.
+Never lower a unit's acceptance criteria to keep the loop moving.
 
 ---
 

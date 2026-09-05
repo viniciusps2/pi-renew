@@ -111,6 +111,11 @@ Hard stops are not something you request — the protocol always stops rather th
 escalates in review a second time, a child run fails, or a commit or push fails (see Automatic continuation
 below). There is no phrase that turns that off; only the restart budget above is something you actively set.
 
+Being **blocked** is not automatically one of them. A unit stopped by a defect it did not introduce —
+a broken build, a duplicate registration, a fixture an earlier unit left wrong — gets repaired and the
+loop carries on, even when the repair lives in files belonging to another unit, provided the repair
+changes no design the spec fixed. Where it would, that is a decision and the loop stops for it.
+
 ### Examples
 
 **One unit, then stop (the default).**
@@ -198,6 +203,15 @@ stop. Two independent checks run at the top of every analyse phase:
 Automatic does not mean unsupervised judgement. The loop stops rather than guessing whenever a decision is
 due, and also stops on: a unit escalating in review twice, a failing child run, a failing commit or push, and
 the restart budget being reached.
+
+It draws the line at the **design**, not at the file. A unit blocked by a pre-existing defect is repaired
+in place — outside the unit's allowed files if that is where the defect lives, as its own `fix:` commit
+before the unit's, recorded in the handover — once the loop has proved the defect is not its own and that
+the shortest repair changes no spec-fixed decision, no public surface, no dependency, no protocol and no
+test's strength. If any of those *would* change, or the alternatives disagree about the design, the loop
+stops and asks. It never takes the third route of ticking the unit against a reduced bar. The full rule,
+with its bounds, is the 🔧 lane in
+[`IMPROVEMENT-BUDGET.md`](../skills/subagent-brief/IMPROVEMENT-BUDGET.md).
 
 > **Recommendation:** use `ask me before starting each next unit` until you have seen the no-progress guard
 > fire at least once. It is the one guard with nothing behind it.

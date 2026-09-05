@@ -189,6 +189,11 @@ stop, the intended ending) and the **no-progress guard** (the task list is uncha
 cycle → stop and say so). The loop also stops rather than guessing whenever a decision is due, when a
 unit escalates in review twice, when a child run fails, and when a commit or push fails.
 
+Being blocked is not by itself a decision. A unit stopped by a defect it did not introduce is
+repaired and the loop carries on — outside the unit's allowed files if that is where the defect
+lives, as its own commit — so long as the repair changes no design the spec fixed. Where it would,
+the loop stops and asks. The line is the design, never the file.
+
 > **Start with `ask me before each next unit`** until you have seen the no-progress guard fire at
 > least once. It is the one guard with nothing behind it.
 
@@ -206,7 +211,7 @@ troubleshooting, and the design rationale — is in [`docs/pi-loop.md`](docs/pi-
 | [`docs/STATUS.md`](docs/STATUS.md) | **What is actually proven** — the verification run, what is still outstanding, and the open decisions (including the `strategy` default and the runtime-version question) |
 | [`docs/delegate-restart-streaming-throw.md`](docs/delegate-restart-streaming-throw.md) | **Research** — why a restart could fail silently with "Agent is already processing", the two defects that came out of it, and the evidence. A dated record, not current documentation |
 | [`skills/subagent-brief/VERIFICATION-MENU.md`](skills/subagent-brief/VERIFICATION-MENU.md) | Which check earns its cost on which change — the T0–T3 tiers, and the command for each in TypeScript, Java, Python and shell |
-| [`skills/subagent-brief/IMPROVEMENT-BUDGET.md`](skills/subagent-brief/IMPROVEMENT-BUDGET.md) | What an agent may improve on its own authority (🟢), what it must propose (🟡), and what it must escalate (🔴) |
+| [`skills/subagent-brief/IMPROVEMENT-BUDGET.md`](skills/subagent-brief/IMPROVEMENT-BUDGET.md) | What an agent may improve on its own authority (🟢), what it must propose (🟡), what it must escalate (🔴), and what it may repair outside its allowed files to unblock a unit (🔧) |
 | [`skills/pi-driver-common/CONTRACT.md`](skills/pi-driver-common/CONTRACT.md) | The shared driver contract: *start · send · settled? · dead? · read* |
 
 ---

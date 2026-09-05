@@ -151,6 +151,9 @@ Tick each only when a test you can name proves it.
   | `<path>` | <what changes> |
 
   If you become convinced another file must change, **stop and report it** instead of changing it.
+  Reporting it is a live path, not a dead end — the caller can repair a blocking defect outside this
+  table, and does it far more cheaply when your report carries the evidence: the exact command and
+  failure, whether it reproduces without your changes, and the smallest fix you can see.
 
 - **Do NOT touch** `<generated>`, `<contracts>`, `<fixtures>`, `<other apps/libs>`.
 - **Do NOT run any git command that touches this repository's history or index** (`add`, `commit`,

@@ -177,3 +177,8 @@ non-vacuity probe wastes the review.
 Hand off to `subagent-review`: re-run the gate yourself, diff the allowed-files table against
 `git status`, and read the diff for what the acceptance criteria **did not** ask about — at the depth
 the tier selected, and with the improvement lanes triaged rather than accepted.
+
+If it comes back **blocked** rather than finished, the allowed-files table binds the sub-agent, not
+you. Prove the blocker is not the batch's own defect, then repair it outside the table — as its own
+`fix:` commit — whenever the shortest repair changes no design the spec fixed. The 🔧 lane in
+[IMPROVEMENT-BUDGET.md](IMPROVEMENT-BUDGET.md) is the full rule, including when to stop instead.

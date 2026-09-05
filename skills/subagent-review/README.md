@@ -48,9 +48,26 @@ cheapest signal in the report.
 An opportunistic improvement is by definition not on the unit's critical path: deferring one cannot
 make the unit wrong, so halting an unattended run to ask about an opportunity trades a working loop
 for a question that could have waited. Recording it in the handover keeps it from being lost, which
-is the actual risk. The carve-out is narrow on purpose — a correctness finding, a blocked
-deliverable, or an ambiguity about intent still stops the loop, because each of those *does* make the
-unit wrong if guessed at.
+is the actual risk. The carve-out is narrow on purpose — a correctness finding or an ambiguity about
+intent still stops the loop, because each of those *does* make the unit wrong if guessed at.
+
+## Why a blocked unit is triaged before it is escalated
+
+"I am blocked" and "I need a decision" look identical from inside a stopped loop, and they are not
+the same thing. The case that made this rule: a unit's integration test could not run because of a
+duplicate bean registration four units upstream — pre-existing, provable as pre-existing (an earlier
+unit's test failed the same way, referencing none of the new code), and fixable by one annotation in
+a file the brief forbade. The loop stopped and asked, because "a blocked deliverable stops the loop
+in every mode" made no distinction. Nobody had a decision to make: both offered options were spellings
+of the same mechanical fix.
+
+The distinction that replaced it is not about **files**, it is about the **design**. An allowed-files
+table exists to keep a review surface readable — it is bookkeeping, and crossing it to repair a
+broken tree costs nothing that a separate `fix:` commit does not restore. A spec-fixed decision, the
+public surface, a dependency, the protocol, a test's strength: those are what an agent must never
+change to get itself moving, and those are what still stop the loop. Asking a person to authorise a
+build fix wastes the thing an unattended loop is for; changing the design without asking destroys the
+thing it is working on.
 
 ## Why your own numbers, always
 

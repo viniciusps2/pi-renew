@@ -98,7 +98,11 @@ replacement separately — the problem being real does not establish that the re
 
 ### 7. Findings & gaps
 
-- Anything you could not do, and what blocked it.
+- Anything you could not do, and what blocked it. For a **blocker**, give the caller what it needs to
+  triage rather than a verdict: the exact command and its failure output, whether it reproduces with
+  your changes reverted or on code that predates them, the first failing thing in the chain, and the
+  smallest fix you can see with the files it would touch. Do not apply that fix, and do not record
+  the blockage in any tracking document — the caller owns those.
 - Anything you noticed that is wrong but out of scope — reported, **not** fixed.
 - Assumptions you are relying on that the brief did not state.
 - Anything you believe is a defect in the brief, the task document, or the spec.
