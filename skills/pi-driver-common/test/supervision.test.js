@@ -13,8 +13,8 @@ import {
   superviseRestart,
 } from '../supervision.js';
 
-// The exact SDK streaming-guard throw (docs/delegate-restart-streaming-throw.md §14, the
-// agent-session.js throw). Contains BOTH "already processing" and "streamingBehavior".
+// The exact SDK streaming-guard throw (the `agent-session.js` throw). Contains BOTH
+// "already processing" and "streamingBehavior".
 const SDK_THROW =
   "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message.";
 

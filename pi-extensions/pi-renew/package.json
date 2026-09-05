@@ -1,7 +1,7 @@
 {
   "name": "pi-renew",
   "version": "1.0.0",
-  "description": "Pi agent extension: reset a live session's context and continue with a caller-supplied payload.",
+  "description": "Pi agent extension: renew a live session — replace its context with a caller-supplied handover and continue.",
   "main": "pi-renew.ts",
   "scripts": {
     "test": "vitest",
@@ -14,7 +14,8 @@
     "pi-agent",
     "extension",
     "context-restart",
-    "delegate"
+    "session-renewal",
+    "handover"
   ],
   "author": "",
   "license": "MIT",

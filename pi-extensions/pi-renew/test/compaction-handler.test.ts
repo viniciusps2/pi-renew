@@ -10,9 +10,9 @@ function getHandler(mockPi: any, eventName: string) {
   return call?.[1];
 }
 
-// O25: executeDelegation's compact branch now reads (and writes) the delegate-state record,
+// O25: executeRenewal's compact branch now reads (and writes) the renewal-state record,
 // so every mock ctx below needs a real cwd and a sessionManager.getSessionId — a temp dir,
-// not "/nonexistent" or process.cwd(), so a stray .pi/loop/delegate-*.json here can never
+// not "/nonexistent" or process.cwd(), so a stray .pi/renew/renewal-*.json here can never
 // read or write the developer's own real state (the same class of defect as handover F37).
 // File-scoped (not per-describe): both describe blocks below build a compacting ctx.
 let cwd: string;
@@ -191,12 +191,12 @@ describe("session_before_compact handler", () => {
 
 /**
  * Task 3.4 — the compact strategy behind the new selector (default, per decision 3), with
- * its already-applied "nothing to compact" fix preserved and tested explicitly. pendingDelegation
+ * its already-applied "nothing to compact" fix preserved and tested explicitly. pendingRenewal
  * clearing is asserted observably, per the technique used across this batch's new test
  * files: fire session_before_compact again afterwards and confirm it is a no-op (returns
  * undefined) rather than reading the private variable.
  */
-describe("compact path — honest continuation and pendingDelegation clearing (task 3.4)", () => {
+describe("compact path — honest continuation and pendingRenewal clearing (task 3.4)", () => {
   let mockPi: any;
   let mockCtx: any;
 
@@ -234,9 +234,9 @@ describe("compact path — honest continuation and pendingDelegation clearing (t
     return { toolConfig, result, compactOptions: mockCtx.compact.mock.calls[0][0] };
   }
 
-  /** pendingDelegation cleared, observed the only way this batch allows: firing
+  /** pendingRenewal cleared, observed the only way this batch allows: firing
    *  session_before_compact again must now be a no-op (returns undefined). */
-  async function expectPendingDelegationCleared(entryId: string) {
+  async function expectPendingRenewalCleared(entryId: string) {
     const handler = getHandler(mockPi, "session_before_compact");
     const result = await handler(
       { preparation: { firstKeptEntryId: entryId, tokensBefore: 1 }, branchEntries: [{ id: entryId }] },
@@ -269,10 +269,10 @@ describe("compact path — honest continuation and pendingDelegation clearing (t
       expect(text).toContain("restart #1");
     });
 
-    it("clears pendingDelegation", async () => {
+    it("clears pendingRenewal", async () => {
       const { compactOptions } = await runTool();
       await compactOptions.onError(new Error("Nothing to compact"));
-      await expectPendingDelegationCleared("entry-a1");
+      await expectPendingRenewalCleared("entry-a1");
     });
   });
 
@@ -292,10 +292,10 @@ describe("compact path — honest continuation and pendingDelegation clearing (t
       expect(text).toContain("restart #1");
     });
 
-    it("clears pendingDelegation", async () => {
+    it("clears pendingRenewal", async () => {
       const { compactOptions } = await runTool();
       await compactOptions.onError(new Error("session too small"));
-      await expectPendingDelegationCleared("entry-b1");
+      await expectPendingRenewalCleared("entry-b1");
     });
   });
 
@@ -315,10 +315,10 @@ describe("compact path — honest continuation and pendingDelegation clearing (t
       expect(text).toContain("restart #1");
     });
 
-    it("clears pendingDelegation", async () => {
+    it("clears pendingRenewal", async () => {
       const { compactOptions } = await runTool();
       await compactOptions.onError(new Error("Already compacted"));
-      await expectPendingDelegationCleared("entry-c1");
+      await expectPendingRenewalCleared("entry-c1");
     });
   });
 
@@ -332,10 +332,10 @@ describe("compact path — honest continuation and pendingDelegation clearing (t
       expect(text).toContain("disk exploded");
     });
 
-    it("clears pendingDelegation", async () => {
+    it("clears pendingRenewal", async () => {
       const { compactOptions } = await runTool();
       await compactOptions.onError(new Error("disk exploded"));
-      await expectPendingDelegationCleared("entry-d1");
+      await expectPendingRenewalCleared("entry-d1");
     });
   });
 

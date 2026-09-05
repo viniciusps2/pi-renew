@@ -71,9 +71,9 @@ export function resolveDispatchableRestart(
  */
 export function renderRestartSignal(inFlight: boolean): string {
   if (inFlight) {
-    return "A restart is already in progress. Stand down — do not call `delegate_context_high` again this run; it will complete on its own.";
+    return "A restart is already in progress. Stand down — do not call `renew_from_handover` again this run; it will complete on its own.";
   }
-  return "Stop work and delegate now.";
+  return "Stop work and renew the session now.";
 }
 
 /**

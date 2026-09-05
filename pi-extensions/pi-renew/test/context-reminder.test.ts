@@ -93,9 +93,9 @@ describe("high-context reminder injection", () => {
 
     expect(result.messages).toHaveLength(2);
     expect(result.messages[1].role).toBe("user");
-    expect(result.messages[1].content).toContain("Stop work and delegate now");
+    expect(result.messages[1].content).toContain("Stop work and renew the session now");
     expect(result.messages[1].content).toContain("Do not inspect one more thing");
-    expect(result.messages[1].content).toContain("delegate_context_high");
+    expect(result.messages[1].content).toContain("renew_from_handover");
     expect(result.messages[1].content).toContain("Do not update task files");
     // Spec "No private artifact paths": the reminder must not invent or name a
     // temporary file path of the extension's own making.
@@ -306,7 +306,7 @@ describe("§2.3 in-flight stand-down signal in the high-context reminder", () =>
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("in-flight: the reminder contains the stand-down phrase and omits the delegate steps", async () => {
+  it("in-flight: the reminder contains the stand-down phrase and omits the renewal steps", async () => {
     const sessionId = "s23-inflight";
     extensionFactory(mockPi);
 
@@ -327,10 +327,10 @@ describe("§2.3 in-flight stand-down signal in the high-context reminder", () =>
     expect(content).toContain(renderRestartSignal(true));
     // Does NOT contain the ordinary step lines:
     expect(content).not.toContain("Do these steps immediately");
-    expect(content).not.toContain("4. Call `delegate_context_high`");
+    expect(content).not.toContain("4. Call `renew_from_handover`");
   });
 
-  it("not-in-flight: the reminder contains the ordinary delegate steps and does not contain the stand-down phrase", async () => {
+  it("not-in-flight: the reminder contains the ordinary renewal steps and does not contain the stand-down phrase", async () => {
     const sessionId = "s23-not-inflight";
     extensionFactory(mockPi);
 
@@ -347,7 +347,7 @@ describe("§2.3 in-flight stand-down signal in the high-context reminder", () =>
 
     // Contains the ordinary wording:
     expect(content).toContain("Do these steps immediately");
-    expect(content).toContain("delegate_context_high");
+    expect(content).toContain("renew_from_handover");
     // Does NOT contain the stand-down phrase:
     expect(content).not.toContain("A restart is already in progress");
   });

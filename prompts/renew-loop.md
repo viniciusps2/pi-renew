@@ -75,11 +75,11 @@ and re-registering only resets the restart counter the budget is read from.
 
 Before reading the handover, the task list, or anything else:
 
-- Call `set_delegate_context` with `context` set to the literal string `/renew-loop ` followed by the
+- Call `set_renewal_context` with `context` set to the literal string `/renew-loop ` followed by the
   request in Your request above, character for character — no paraphrase, no re-ordering, no
   tidying. This is what makes turn 1 crash-safe: a session lost before the first restart resumes by
   replaying that string. Normalizing it makes the loop drift once per turn.
-- If `set_delegate_context` is unavailable, `pi-renew` is not loaded. Note that in the handover, run
+- If `set_renewal_context` is unavailable, `pi-renew` is not loaded. Note that in the handover, run
   in one session (see No-restart mode) regardless of what the request asked for, and say so plainly
   in your final message.
 
@@ -100,7 +100,7 @@ that could answer differently on turn 4 than on turn 3 hands the fresh session s
   into the handover on the first turn and read them back from it afterwards, so a resumed run keeps
   the bound it started with.
 - **Make a task list tickable**, if there is one — below.
-- **The restart primitive.** `set_delegate_context` and `delegate_to_agent` present → restart between
+- **The restart primitive.** `set_renewal_context` and `renew_session` present → restart between
   turns. Absent → No-restart mode. That is the only capability the default loop cares about; the
   optional lanes are probed only in the modes that use them.
 
@@ -256,10 +256,10 @@ Check these in order, before doing anything else with the turn's result:
 5. **`ask` between turns** was requested → report the turn, name what the next one would do, and wait.
    When the user says to carry on, restart into the next turn as in 6 rather than continuing here: the
    fresh context is the point, and the restart ordinal is how the budget is counted.
-6. **Otherwise, restart.** Call `delegate_to_agent` with:
+6. **Otherwise, restart.** Call `renew_session` with:
    - `reason` — `renew-loop-turn`.
    - `strategy` — always `new-session`, passed explicitly. Never omit it and never pass `compact`:
-     `compact` does not replay a registered delegate context, so the fresh context would get a bare
+     `compact` does not replay a registered renewal context, so the fresh context would get a bare
      continuation notice and the loop would die after this turn.
    - `summary` — the tool's structured summary (Goal, Constraints & Preferences, Progress, Key
      Decisions, Next Steps, Critical Context) for the turn that just finished.
@@ -267,21 +267,21 @@ Check these in order, before doing anything else with the turn's result:
 
 **High-context variant.** If the extension's high-context reminder fires mid-turn, that is not your
 decision to restart — follow the reminder instead: stop work, write a complete handover including its
-`Next:` line, then call `delegate_context_high` with `handoverPath` pointing at that file. Do not call
-`delegate_to_agent` for this path; `delegate_context_high` calls it internally with the right reason
+`Next:` line, then call `renew_from_handover` with `handoverPath` pointing at that file. Do not call
+`renew_session` for this path; `renew_from_handover` calls it internally with the right reason
 and nextSteps. A turn cut short this way still counts against the budget.
 
 ## No-restart mode
 
-Selected by the request, or forced by Step 1 when `set_delegate_context` is unavailable. Run the turns
-in sequence in one session, with no `delegate_to_agent` call of your own, still stopping on the same
+Selected by the request, or forced by Step 1 when `set_renewal_context` is unavailable. Run the turns
+in sequence in one session, with no `renew_session` call of your own, still stopping on the same
 conditions and the same budget — counted here from the handover's `Turn:` line, since there is no
 restart ordinal to read. Write the handover every turn anyway — it is the record of what
 happened, not restart bookkeeping — and be aware that the context you were supposed to shed is still
 with you: keep each turn's reading as tight as if it were about to be thrown away.
 
 If the high-context reminder fires anyway, follow it: write the handover and call
-`delegate_context_high`. It restarts the session even though nothing else here does — it is the
+`renew_from_handover`. It restarts the session even though nothing else here does — it is the
 extension's safety net, and not optional because the request asked for no restarts.
 
 ## Opt-in: brief-and-review mode
@@ -402,7 +402,7 @@ Degrade, and say which lane you took — the handover's `Notes` is the place.
 | **OpenSpec** | `openspec --version` answers — or `npx openspec --version`, for a project-local install — and the repo has an `openspec/` directory | `openspec show <change>` / `status --change <change>` to resolve the change; `validate <change> --strict` in the check when a unit touches the spec delta; `archive <change>` **only if the request asked**, after the stop condition is met, as its own commit | the task list is a plain markdown checklist and the spec files are ordinary files |
 
 **A missing tool is never a hard stop.** The one absence that changes the run is
-`set_delegate_context`, and that selects No-restart mode rather than stopping.
+`set_renewal_context`, and that selects No-restart mode rather than stopping.
 
 ## The final report
 

@@ -56,7 +56,7 @@ pi install "$PWD"
 #    …which writes the entry into ~/.pi/agent/settings.json:
 #    "packages": [ …, "<path to this checkout>" ]
 
-# 2. (Once per machine) Turn on the high-context auto-restart; add model aliases if you like:
+# 2. (Once per machine) Turn on the automatic high-context renewal; add model aliases if you like:
 #    cat ~/.pi/agent/pi-renew.json
 #    { "highContextReminder": { "enabled": true, "thresholdFraction": 0.85 } }
 
@@ -68,8 +68,7 @@ pi install "$PWD"
 
 **No symlinking into `~/.pi/agent/`.** An earlier version of this section had you install the inner
 `pi-extensions/pi-renew` directory and then link `prompts/loop.md` and `skills/` into `~/.pi/agent/`
-(back when the prompt was `loop.md` and the command was `/renew-loop`)
-by hand. The manifest install replaces all of it. If you still have that setup, the two registrations
+(back when the prompt was `loop.md` and the command was `/loop`) by hand. The manifest install replaces all of it. If you still have that setup, the two registrations
 stack — and a duplicate extension is exactly what the live tests refuse to run against. From a checkout, run
 `./install.mjs --check` to list the leftovers and `./install.mjs --migrate` to remove them.
 
@@ -274,7 +273,7 @@ restart, and a review against notes written before the diff existed.
 ```
 TURN 1  (fresh session)
 ├─ /renew-loop expands: protocol body + your request at $@
-├─ STEP 1: register the delegate context = "/renew-loop <your request, verbatim>"
+├─ STEP 1: register the renewal context = "/renew-loop <your request, verbatim>"
 │          └─ validated now: does "/renew-loop" resolve?   — crash-safe from here on
 ├─ STEP 2: resolve the work · the handover · the stop condition · the budget (default 10)
 ├─ STEP 3: read the handover → do ONE turn's work → run its check → tick → commit
@@ -426,13 +425,13 @@ always done: reset the context and carry your summary and next steps forward.
 
 ```
 > we're done exploring; clean the context and keep going with the migration
-   → the agent calls the delegation tool with a summary and next steps
+   → the agent calls `renew_session` with a summary and next steps
    → the session restarts carrying just those
 ```
 
 The same happens automatically when the high-context trigger fires, in any flow, with no loop present.
 
-If you *do* register a delegate context, it is replayed on every restart, and it can be anything the runtime
+If you *do* register a renewal context, it is replayed on every restart, and it can be anything the runtime
 can expand:
 
 | Registered context | What the fresh session receives |
@@ -473,7 +472,7 @@ still one coherent history.
 ## Troubleshooting
 
 **The fresh session ignored my loop and answered something else.**
-The delegate context was delivered but not expanded — the model received the literal text `/renew-loop …`. Usually
+The renewal context was delivered but not expanded — the model received the literal text `/renew-loop …`. Usually
 `/renew-loop` is not registered at all, or the template was renamed after registration. Check that `/help` lists
 `/renew-loop`, and that `pi list` shows the pi-renew package; `./install.mjs --check` in a checkout reports the same thing plus
 any stale symlinks from the pre-manifest setup. Registration-time validation is meant to catch this at session
@@ -543,7 +542,7 @@ shape and the modes are the template's own invention. `pi-renew` never interpret
 replays a registered string. That ignorance is what lets the same extension serve callers with
 nothing to do with this protocol.
 
-**Why `new-session` is always passed explicitly, and `compact` never.** The registered delegate
+**Why `new-session` is always passed explicitly, and `compact` never.** The registered renewal
 context is assembled only inside the `/pi-renew` command handler, and only the `new-session`
 branch dispatches that command. Under `compact` the fresh context receives a short continuation
 notice and nothing else — no protocol body, no request — so the loop dies after one turn.

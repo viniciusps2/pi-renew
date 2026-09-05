@@ -12,16 +12,16 @@ import { basename, join } from "node:path";
 
 /**
  * On-disk storage for the *in-flight* state of a `new-session` restart, keyed by the
- * parent session id. A session's record lives at `.pi/loop/restart-inflight-<sessionId>.json`
+ * parent session id. A session's record lives at `.pi/renew/restart-inflight-<sessionId>.json`
  * under the project's cwd. A replacement session has a different id, so it adopts its
  * predecessor's record by renaming the file onto its own id (the D3 "delivered"
  * handshake in `pi-renew.ts`'s `session_start` handler).
  *
- * This is deliberately a separate file from the delegate-context record
- * (`delegate-<sessionId>.json`): the in-flight state is keyed by the *parent* session
- * id, so it must exist whether or not a delegate context was ever registered for that
- * session (design D1: "a separate file exists whether or not a delegate context is
- * registered"), and it keeps the `DelegateState` schema and `DELEGATE_STATE_VERSION`
+ * This is deliberately a separate file from the renewal-context record
+ * (`renewal-<sessionId>.json`): the in-flight state is keyed by the *parent* session
+ * id, so it must exist whether or not a renewal context was ever registered for that
+ * session (design D1: "a separate file exists whether or not a renewal context is
+ * registered"), and it keeps the `RenewalState` schema and `RENEWAL_STATE_VERSION`
  * untouched (D-IN10: purely additive).
  *
  * Why a file at all: the extension is re-instantiated when the session is replaced, and
@@ -65,16 +65,16 @@ export interface RestartInflight {
 }
 
 /**
- * The directory holding every in-flight record. Same directory as the delegate-context
- * records (`.pi/loop/`), so one `mkdirSync` covers both.
+ * The directory holding every in-flight record. Same directory as the renewal-context
+ * records (`.pi/renew/`), so one `mkdirSync` covers both.
  */
 export function getRestartInflightDir(cwd: string): string {
-  return join(cwd, ".pi", "loop");
+  return join(cwd, ".pi", "renew");
 }
 
 /**
  * The on-disk path of the in-flight record for `sessionId`:
- * `.pi/loop/restart-inflight-<sessionId>.json` under `cwd`.
+ * `.pi/renew/restart-inflight-<sessionId>.json` under `cwd`.
  */
 export function getRestartInflightPath(cwd: string, sessionId: string): string {
   return join(getRestartInflightDir(cwd), `restart-inflight-${sessionId}.json`);
@@ -133,7 +133,7 @@ export function readRestartInflight(cwd: string, sessionId: string): RestartInfl
  * Atomically persists a session's in-flight record: the JSON is serialised to a temp file
  * in the same directory, then renamed over the record. Rename within one directory is
  * atomic, so a crash mid-write can never leave a half-written record (the same idiom as
- * `writeDelegateState`). A second call for the same session overwrites the first.
+ * `writeRenewalState`). A second call for the same session overwrites the first.
  */
 export function writeRestartInflight(cwd: string, parentSessionId: string, rec: RestartInflight): void {
   const dir = getRestartInflightDir(cwd);
@@ -164,7 +164,7 @@ export function markRestartInflightDelivered(cwd: string, sessionId: string): vo
 /**
  * Renames the predecessor's in-flight record onto the current session's key, so a
  * replacement session re-discovers the record its predecessor left in flight. Atomic in the
- * same sense as `adoptDelegateState`: a crash mid-adoption leaves exactly one of the two
+ * same sense as `adoptRenewalState`: a crash mid-adoption leaves exactly one of the two
  * keys, never both, never neither. Contents are untouched (the `restartId` is not
  * re-minted; only the file's key changes).
  *
@@ -186,7 +186,7 @@ export function adoptRestartInflight(cwd: string, fromId: string, toId: string):
  * Deletes `restart-inflight-*.json` records whose mtime is older than
  * `RESTART_INFLIGHT_MAX_AGE_MS`. Never deletes a record the caller is currently acting on
  * is not tracked here (the caller passes the live cwd only), never touches non-matching
- * files (`.pi/loop/` also holds the delegate-context records), and never throws.
+ * files (`.pi/renew/` also holds the renewal-context records), and never throws.
  */
 export function reapRestartInflight(cwd: string): void {
   const dir = getRestartInflightDir(cwd);
@@ -196,7 +196,7 @@ export function reapRestartInflight(cwd: string): void {
   try {
     entries = readdirSync(dir);
   } catch {
-    // e.g. `.pi/loop` exists but is not a directory. A sweep is housekeeping; it must
+    // e.g. `.pi/renew` exists but is not a directory. A sweep is housekeeping; it must
     // never take the session down with it.
     return;
   }

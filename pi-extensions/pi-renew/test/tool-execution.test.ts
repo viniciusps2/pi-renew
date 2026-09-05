@@ -5,15 +5,15 @@ import { join } from "node:path";
 
 import extensionFactory from "../pi-renew";
 
-describe("delegate_to_agent tool execution", () => {
+describe("renew_session tool execution", () => {
   let mockPi: any;
   let mockCtx: any;
   let cwd: string;
 
   beforeEach(() => {
     // O25: the compact branch (this file's only strategy) now reads/writes the
-    // delegate-state record, so the mock ctx needs a real cwd — a temp dir, not
-    // process.cwd(), so a stray .pi/loop/delegate-*.json can never touch the developer's
+    // renewal-state record, so the mock ctx needs a real cwd — a temp dir, not
+    // process.cwd(), so a stray .pi/renew/renewal-*.json can never touch the developer's
     // own real state (handover F37).
     cwd = mkdtempSync(join(tmpdir(), "tool-execution-test-"));
     mockPi = {
@@ -39,14 +39,14 @@ describe("delegate_to_agent tool execution", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("should register the delegate_to_agent tool", () => {
+  it("should register the renew_session tool", () => {
     extensionFactory(mockPi);
 
     expect(mockPi.registerTool).toHaveBeenCalled();
     
     const toolConfig = mockPi.registerTool.mock.calls[0][0];
-    expect(toolConfig.name).toBe("delegate_to_agent");
-    expect(toolConfig.label).toBe("Delegate to Another Agent");
+    expect(toolConfig.name).toBe("renew_session");
+    expect(toolConfig.label).toBe("Renew Session");
   });
 
   it("should format summary with handoff metadata", async () => {
@@ -88,7 +88,7 @@ describe("delegate_to_agent tool execution", () => {
     // The spec's "Tool result is honest about pendingness" requirement (batch 3A)
     // deliberately changed this to "requested … pending" — a restart is not yet
     // known to have completed when the tool returns.
-    expect(result.content[0].text).toContain("Agent delegation requested");
+    expect(result.content[0].text).toContain("Session renewal requested");
     expect(result.content[0].text).toContain("test phase");
   });
 

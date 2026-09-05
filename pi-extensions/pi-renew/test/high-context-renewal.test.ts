@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import extensionFactory from "../pi-renew";
-import { DELEGATE_STATE_VERSION, writeDelegateState } from "../delegate-state";
+import { RENEWAL_STATE_VERSION, writeRenewalState } from "../renewal-state";
 
 function getTool(mockPi: any, toolName: string) {
   return mockPi.registerTool.mock.calls
@@ -17,8 +17,8 @@ function makeMockCtx(entries: any[] = []) {
     getSystemPrompt: vi.fn().mockReturnValue("You are the implement agent."),
     sessionManager: { getEntries: vi.fn().mockReturnValue(entries) },
     modelRegistry: { getAll: vi.fn().mockReturnValue([]) },
-    // O26: delegate_context_high now passes strategy: "new-session" explicitly, so its
-    // executeDelegation call takes the new-session branch, which reports a failed dispatch
+    // O26: renew_from_handover now passes strategy: "new-session" explicitly, so its
+    // executeRenewal call takes the new-session branch, which reports a failed dispatch
     // through ctx.ui.notify (reportRestartFailure). The happy-path tests below never reach
     // that branch (mockPi.getCommands resolves "pi-renew"), but the ctx type requires it.
     ui: { notify: vi.fn() },
@@ -63,7 +63,7 @@ function makeCommandCtx(cwd: string, sessionId: string, c2: any) {
 // tests need the high-context reminder to fire at all. The handover path now comes
 // from the caller (the test), never from the reminder, so loadConfig()'s real
 // threshold is irrelevant here. See brief-4B decision 12.
-describe("delegate_context_high tool", () => {
+describe("renew_from_handover tool", () => {
   let mockPi: any;
   let cwd: string;
 
@@ -74,14 +74,14 @@ describe("delegate_context_high tool", () => {
       registerCommand: vi.fn(),
       sendUserMessage: vi.fn(),
       setModel: vi.fn().mockResolvedValue(true),
-      // O26: delegate_context_high's executeDelegation call now takes the new-session
+      // O26: renew_from_handover's executeRenewal call now takes the new-session
       // branch (strategy: "new-session"), which resolves its dispatch target through
       // pi.getCommands(). Without this, resolveRestartCommandName finds nothing, the tool
       // takes the reportRestartFailure branch, and every assertion below would silently be
       // testing the failure path instead of the real one (see the brief's note on this file).
       getCommands: vi.fn().mockReturnValue([{ name: "pi-renew", source: "extension", sourceInfo: {} }]),
     };
-    cwd = mkdtempSync(join(tmpdir(), "high-context-delegation-test-"));
+    cwd = mkdtempSync(join(tmpdir(), "high-context-renewal-test-"));
   });
 
   afterEach(() => {
@@ -91,7 +91,7 @@ describe("delegate_context_high tool", () => {
   it("declares handoverPath as a required parameter", () => {
     extensionFactory(mockPi);
 
-    const tool = getTool(mockPi, "delegate_context_high");
+    const tool = getTool(mockPi, "renew_from_handover");
 
     expect(tool.parameters.properties.handoverPath).toBeDefined();
     expect(tool.parameters.required).toContain("handoverPath");
@@ -100,7 +100,7 @@ describe("delegate_context_high tool", () => {
   it("fails with a clear message when no location is supplied", async () => {
     extensionFactory(mockPi);
 
-    const tool = getTool(mockPi, "delegate_context_high");
+    const tool = getTool(mockPi, "renew_from_handover");
 
     let error: Error | undefined;
     try {
@@ -117,7 +117,7 @@ describe("delegate_context_high tool", () => {
   it("fails naming the caller-supplied path when the file does not exist", async () => {
     extensionFactory(mockPi);
 
-    const tool = getTool(mockPi, "delegate_context_high");
+    const tool = getTool(mockPi, "renew_from_handover");
     const handoverPath = join(cwd, "never-written.md");
 
     await expect(
@@ -134,7 +134,7 @@ describe("delegate_context_high tool", () => {
   it("fails when the caller-supplied file exists but is empty", async () => {
     extensionFactory(mockPi);
 
-    const tool = getTool(mockPi, "delegate_context_high");
+    const tool = getTool(mockPi, "renew_from_handover");
     const handoverPath = join(cwd, "empty-handover.md");
     writeFileSync(handoverPath, "   \n", "utf-8");
 
@@ -149,9 +149,9 @@ describe("delegate_context_high tool", () => {
     ).rejects.toThrow("file is empty");
   });
 
-  // O26: `delegate_context_high` passes strategy: "new-session" explicitly — a strategy
+  // O26: `renew_from_handover` passes strategy: "new-session" explicitly — a strategy
   // choice, not a bug fix, stated as such at its own call site. Once O25 lands, this path
-  // replays the delegate context on its own under `compact` too; it is set to `new-session`
+  // replays the renewal context on its own under `compact` too; it is set to `new-session`
   // because both strategies reset the context but `new-session` additionally records
   // lineage via `parentSession` and produces a clean session file — the more useful
   // post-mortem artifact for the failure this path exists to handle, a session that ran out
@@ -159,7 +159,7 @@ describe("delegate_context_high tool", () => {
   it("dispatches the restart command via new-session, never calling ctx.compact", async () => {
     extensionFactory(mockPi);
 
-    const tool = getTool(mockPi, "delegate_context_high");
+    const tool = getTool(mockPi, "renew_from_handover");
     const handoverPath = join(cwd, "handover.md");
     writeFileSync(handoverPath, "## Goal\nSomething to hand off", "utf-8");
     const mockCtx = makeMockCtx();
@@ -174,9 +174,9 @@ describe("delegate_context_high tool", () => {
   });
 
   // Rewritten port of the pre-O26 test "reads the caller-supplied report, appends last task
-  // files, and delegates" (brief decision 20, second row). Under the old `compact` default
+  // files, and renews" (brief decision 20, second row). Under the old `compact` default
   // that test read session_before_compact's returned compaction.summary directly. Under
-  // `new-session`, pendingDelegation is never set, so session_before_compact returns
+  // `new-session`, pendingRenewal is never set, so session_before_compact returns
   // undefined and that read would throw — invalidated, not by a content change, but by the
   // strategy switch. Every one of the four original content assertions, plus the negative
   // "no persona line" assertion, is ported onto the prelude actually delivered by the
@@ -185,7 +185,7 @@ describe("delegate_context_high tool", () => {
     extensionFactory(mockPi);
 
     const sessionId = "high-context-command-session";
-    const tool = getTool(mockPi, "delegate_context_high");
+    const tool = getTool(mockPi, "renew_from_handover");
     const handoverPath = join(cwd, "handover.md");
     writeFileSync(
       handoverPath,
@@ -209,7 +209,7 @@ describe("delegate_context_high tool", () => {
 
     expect(result.content[0].text).toContain(`Continue from the handover report at ${handoverPath}`);
 
-    // No delegate context is registered under sessionId, so the whole prelude — including
+    // No renewal context is registered under sessionId, so the whole prelude — including
     // the handover-derived summary — is delivered as the sole sendUserMessage on c2
     // (decision 19's common case: assembleRestartPayload forces both toggles true when no
     // context is registered, which is the path most users are actually on).
@@ -234,18 +234,18 @@ describe("delegate_context_high tool", () => {
     expect(prelude).not.toContain("Load the agent prompt");
   });
 
-  // Task 5.3's branch: with a delegate context registered under the command handler's own
+  // Task 5.3's branch: with a renewal context registered under the command handler's own
   // session id, that context must reach the fresh session as its own message. Nothing
-  // reached this today — O26 is what makes `delegate_context_high` dispatch a restart at
+  // reached this today — O26 is what makes `renew_from_handover` dispatch a restart at
   // all, so this is the first coverage that closes the loop end to end: the tool dispatches,
   // then the command handler it dispatches to delivers the registered context.
-  it("delivers a registered delegate context as the second message", async () => {
+  it("delivers a registered renewal context as the second message", async () => {
     extensionFactory(mockPi);
 
     const sessionId = "high-context-registered-context-session";
-    const registeredContext = "the delegate context registered for the high-context handoff";
-    writeDelegateState(cwd, sessionId, {
-      version: DELEGATE_STATE_VERSION,
+    const registeredContext = "the renewal context registered for the high-context handoff";
+    writeRenewalState(cwd, sessionId, {
+      version: RENEWAL_STATE_VERSION,
       context: registeredContext,
       includeSummary: true,
       includeNextSteps: true,
@@ -253,7 +253,7 @@ describe("delegate_context_high tool", () => {
       registeredAt: new Date().toISOString(),
     });
 
-    const tool = getTool(mockPi, "delegate_context_high");
+    const tool = getTool(mockPi, "renew_from_handover");
     const handoverPath = join(cwd, "handover-with-context.md");
     writeFileSync(handoverPath, "## Goal\nHandoff body for the registered-context case", "utf-8");
     await tool.execute("tool-call-id", { handoverPath }, undefined, undefined, makeMockCtx());

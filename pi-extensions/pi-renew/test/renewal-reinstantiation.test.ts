@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from "node:
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import extensionFactory from "../pi-renew";
-import { getDelegateStatePath, readDelegateState } from "../delegate-state";
+import { getRenewalStatePath, readRenewalState } from "../renewal-state";
 
 /**
  * Task 2.5, storage half. The property under test: no in-memory value
@@ -12,9 +12,9 @@ import { getDelegateStatePath, readDelegateState } from "../delegate-state";
  * extension was torn down" — nothing is shared between them except the
  * real filesystem under `cwd`.
  */
-function getSetDelegateContextTool(mockPi: any) {
+function getSetRenewalContextTool(mockPi: any) {
   const call = mockPi.registerTool.mock.calls.find(
-    (c: any) => c[0].name === "set_delegate_context"
+    (c: any) => c[0].name === "set_renewal_context"
   );
   return call?.[0];
 }
@@ -42,7 +42,7 @@ function writeRawFile(path: string, content: string): string {
   return path;
 }
 
-/** Mirrors `makeSessionFile` in test/delegate-state.test.ts. */
+/** Mirrors `makeSessionFile` in test/renewal-state.test.ts. */
 function makeSessionFile(
   dir: string,
   timestamp: string,
@@ -62,11 +62,11 @@ function makeSessionFile(
   return path;
 }
 
-describe("delegate context survives re-instantiation across a session replacement (task 2.5, storage half)", () => {
+describe("renewal context survives re-instantiation across a session replacement (task 2.5, storage half)", () => {
   let cwd: string;
 
   beforeEach(() => {
-    cwd = mkdtempSync(join(tmpdir(), "delegate-reinstantiation-test-"));
+    cwd = mkdtempSync(join(tmpdir(), "renewal-reinstantiation-test-"));
   });
 
   afterEach(() => {
@@ -77,7 +77,7 @@ describe("delegate context survives re-instantiation across a session replacemen
     // Step 1: instance A registers a context under session-A.
     const mockPiA = makeMockPi();
     extensionFactory(mockPiA);
-    await getSetDelegateContextTool(mockPiA).execute(
+    await getSetRenewalContextTool(mockPiA).execute(
       "call-1",
       { context: "carried across a restart" },
       undefined,
@@ -92,7 +92,7 @@ describe("delegate context survives re-instantiation across a session replacemen
     // The teeth of "no in-memory value crosses the boundary": instance B has done
     // nothing yet, so session-B's record must not exist before its own
     // session_start handler runs — the value can only appear via on-disk adoption.
-    expect(readDelegateState(cwd, "session-B")).toBeNull();
+    expect(readRenewalState(cwd, "session-B")).toBeNull();
 
     // Step 3: a real session file for session-A, then session_start for session-B.
     const previousFile = makeSessionFile(
@@ -107,16 +107,16 @@ describe("delegate context survives re-instantiation across a session replacemen
       { cwd, sessionManager: { getSessionId: () => "session-B" }, ui: { notify } }
     );
 
-    const state = readDelegateState(cwd, "session-B");
+    const state = readRenewalState(cwd, "session-B");
     expect(state).not.toBeNull();
     expect(state!.context).toBe("carried across a restart");
-    expect(existsSync(getDelegateStatePath(cwd, "session-A"))).toBe(false);
+    expect(existsSync(getRenewalStatePath(cwd, "session-A"))).toBe(false);
   });
 
   it("finds the record through a live parentSession walk, not a dead one (F16 regression guard)", async () => {
     const mockPiA = makeMockPi();
     extensionFactory(mockPiA);
-    await getSetDelegateContextTool(mockPiA).execute(
+    await getSetRenewalContextTool(mockPiA).execute(
       "call-1",
       { context: "found via the parent chain" },
       undefined,
@@ -142,7 +142,7 @@ describe("delegate context survives re-instantiation across a session replacemen
       { cwd, sessionManager: { getSessionId: () => "session-D" }, ui: { notify } }
     );
 
-    const state = readDelegateState(cwd, "session-D");
+    const state = readRenewalState(cwd, "session-D");
     expect(state).not.toBeNull();
     expect(state!.context).toBe("found via the parent chain");
   });
@@ -152,7 +152,7 @@ describe("delegate context survives re-instantiation across a session replacemen
     extensionFactory(mockPiB);
     const handler = getSessionStartHandler(mockPiB);
 
-    const corruptPath = getDelegateStatePath(cwd, "session-B");
+    const corruptPath = getRenewalStatePath(cwd, "session-B");
     writeRawFile(corruptPath, "{not json");
 
     const notify = vi.fn();
@@ -169,7 +169,7 @@ describe("delegate context survives re-instantiation across a session replacemen
   it("sends nothing: sendUserMessage and sendMessage are never called by the session_start handler", async () => {
     const mockPiA = makeMockPi();
     extensionFactory(mockPiA);
-    await getSetDelegateContextTool(mockPiA).execute(
+    await getSetRenewalContextTool(mockPiA).execute(
       "call-1",
       { context: "no injection expected" },
       undefined,

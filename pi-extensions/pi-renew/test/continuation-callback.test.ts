@@ -11,8 +11,8 @@ describe("continuation callback after compaction", () => {
 
   beforeEach(() => {
     // O25: the compact branch (this file's only strategy) now reads/writes the
-    // delegate-state record, so the mock ctx needs a real cwd — a temp dir, not
-    // process.cwd(), so a stray .pi/loop/delegate-*.json can never touch the developer's
+    // renewal-state record, so the mock ctx needs a real cwd — a temp dir, not
+    // process.cwd(), so a stray .pi/renew/renewal-*.json can never touch the developer's
     // own real state (handover F37).
     cwd = mkdtempSync(join(tmpdir(), "continuation-callback-test-"));
     mockPi = {

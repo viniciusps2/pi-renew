@@ -19,9 +19,14 @@ A full verification run of this repo, on `pi` **0.85.0**, Node 22:
 | Extension unit tests | `cd pi-extensions/pi-renew && npx vitest run` (excluding the two live files) | **263 passed**, 27 files |
 | Extension typecheck | `npx tsc --noEmit` | **clean** |
 | Live restart e2e (`new-session`) | `npx vitest run test/restart-e2e.test.ts` | **passed** — a real `pi --mode rpc`, a pre-seeded session, one `/pi-renew` restart, a second session file with `parentSession` = seed, the first turn back at the input floor, clean exit, no `extension_error` |
-| Live delegate-state | `npx vitest run test/delegate-state-live.test.ts` | **passed** |
+| Live renewal-state | `npx vitest run test/renewal-state-live.test.ts` | **passed** |
 | Driver library | `cd skills/pi-driver-common && node --test` | **50 passed** |
 | tmux driver | `cd .claude/skills/pi-subagent-tmux && node --test` | **11 passed** |
+
+**Re-verified after the `delegate_*` → `renew_*` rename**, on `pi` **0.85.1**: the unit suite (263
+passed, 27 files), the typecheck, the driver library (50 passed) and the tmux driver (11 passed) are
+all still green, and a live `pi --mode json` session loads the extension and reports exactly
+`renew_session`, `renew_from_handover` and `set_renewal_context` with no `extension_error`.
 
 Two environment preconditions, both of which produce a *silent* failure when unmet — the live tests
 report "extension did not load" and nothing says why:
@@ -32,7 +37,7 @@ report "extension did not load" and nothing says why:
 2. **No second copy of this extension may be installed.** The live tests load the extension with an
    explicit `-e` *without* `-ne`, so anything in `~/.pi/agent/settings.json` loads alongside it. A
    second copy — an older checkout, the pre-rename `pi-delegate` — registers the same three tool
-   names, and `pi` refuses the loser with `Tool "delegate_to_agent" conflicts with …`. Whichever copy
+   names, and `pi` refuses the loser with `Tool "renew_session" conflicts with …`. Whichever copy
    loses, the test's readiness gate then reports the extension as absent.
 
 ## Outstanding
@@ -57,7 +62,7 @@ is outstanding.
 ### Workstream B — restart reliability
 
 Motivated by an on-disk failure (the `product-master` session `01a04384 → 01a043ca`) analysed in
-a research record kept outside this repo (`docs/delegate-restart-streaming-throw.md`). Two defects:
+a research record kept outside this repo. Two defects:
 
 - **D1 — unbounded success signal.** The tool returned an unqualified "restart is pending" with no
   in-flight state, so the model re-fired the trigger (five times in the instance) until the run was
@@ -71,7 +76,7 @@ The plan recorded **9 of 14** items done — the whole extension side:
 - a persisted in-flight restart record, scoped and max-aged, that survives the extension being
   re-instantiated on the replacement session;
 - an idempotent trigger: a repeat request inside the same live run is a no-op returning a distinct
-  "already delegating — stand down" result, with no second send;
+  "a restart is already in progress — stand down" result, with no second send;
 - a pre-dispatch resolvable check that routes an undispatchable restart into the existing
   `reportRestartFailure` channel instead of a silent "pending";
 - a "pending, never done" result contract with a machine-readable status token;
@@ -90,12 +95,12 @@ Open — all of it **driver-side**:
 
 ## Open decisions
 
-**1. `delegate_to_agent`'s default `strategy` is still `compact`.** The intended eventual default is
+**1. `renew_session`'s default `strategy` is still `compact`.** The intended eventual default is
 `new-session`; the flip was held back until the `new-session` path had a verified live run. That run
 is now green (above), so the flip is unblocked — but it is a **breaking change** for any caller
 relying on the current default and has not been made. `/renew-loop` is unaffected either way: it passes
 `new-session` explicitly on every call, and must keep doing so, because `compact` does not replay a
-registered delegate context.
+registered renewal context.
 
 **2. Which `pi` version the live proofs are pinned to.** The history is worth knowing, because it
 produced two wrong diagnoses:

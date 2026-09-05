@@ -90,10 +90,10 @@ describe("resultDetails (3.2)", () => {
 });
 
 describe("renderRestartSignal (2.3)", () => {
-  it("renderRestartSignal(false) is the ordinary 'call the delegate tool' wording", () => {
+  it("renderRestartSignal(false) is the ordinary 'call the renewal tool' wording", () => {
     const result = renderRestartSignal(false);
-    expect(result).toContain("delegate");
-    expect(result).toBe("Stop work and delegate now.");
+    expect(result).toContain("renew");
+    expect(result).toBe("Stop work and renew the session now.");
   });
 
   it("renderRestartSignal(true) is the stand-down wording", () => {

@@ -4,18 +4,18 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import extensionFactory from "../pi-renew";
 import {
-  DELEGATE_STATE_VERSION,
-  getDelegateStateDir,
-  readDelegateState,
-  writeDelegateState,
-} from "../delegate-state";
+  RENEWAL_STATE_VERSION,
+  getRenewalStateDir,
+  readRenewalState,
+  writeRenewalState,
+} from "../renewal-state";
 
 /**
  * O25 — the `compact` restart strategy delivers the assembled payload as its continuation,
  * the same as `new-session` (task 3.4's original gap; see the implementation handover's O25
  * entry and the delta spec's "Compact strategy selected" scenario). Mirrors
  * restart-newsession.test.ts's structure and header-comment style: drive the
- * `delegate_to_agent` tool with the default strategy (compact), then invoke the captured
+ * `renew_session` tool with the default strategy (compact), then invoke the captured
  * `ctx.compact` callback directly, since this is a mocked, no-live-process suite.
  */
 function makeMockPi(order: string[] = []): any {
@@ -48,7 +48,7 @@ function makeMockToolCtx(cwd: string, sessionId: string) {
   };
 }
 
-function getDelegateToAgentTool(mockPi: any) {
+function getRenewSessionTool(mockPi: any) {
   return mockPi.registerTool.mock.calls[0][0];
 }
 
@@ -58,8 +58,8 @@ function registerContextRecord(
   restartCount: number,
   extra: Partial<{ context: string; includeSummary: boolean; includeNextSteps: boolean }> = {}
 ) {
-  writeDelegateState(cwd, sessionId, {
-    version: DELEGATE_STATE_VERSION,
+  writeRenewalState(cwd, sessionId, {
+    version: RENEWAL_STATE_VERSION,
     context: "/loop implement tasks.md",
     includeSummary: true,
     includeNextSteps: true,
@@ -69,16 +69,16 @@ function registerContextRecord(
   });
 }
 
-/** Runs delegate_to_agent with the default (compact) strategy and returns the captured
+/** Runs renew_session with the default (compact) strategy and returns the captured
  *  ctx.compact({ onComplete, onError }) options for the caller to invoke directly. */
 async function runTool(mockPi: any, ctx: any, params: any) {
   extensionFactory(mockPi);
-  const tool = getDelegateToAgentTool(mockPi);
+  const tool = getRenewSessionTool(mockPi);
   const result = await tool.execute("call-1", params, undefined, undefined, ctx);
   return { result, compactOptions: ctx.compact.mock.calls[0][0] };
 }
 
-describe("delegate_to_agent compact restart — onComplete, with a registered delegate context", () => {
+describe("renew_session compact restart — onComplete, with a registered renewal context", () => {
   const sessionId = "restart-compact-payload-registered-session";
   let cwd: string;
   let order: string[];
@@ -129,12 +129,12 @@ describe("delegate_to_agent compact restart — onComplete, with a registered de
     await fireOnComplete();
 
     const [message] = mockPi.sendMessage.mock.calls[0];
-    expect(message.content.startsWith("Agent delegation completed; context was reset.")).toBe(true);
+    expect(message.content.startsWith("Session renewal completed; context was reset.")).toBe(true);
     expect(message.content).toContain("restart #5");
     expect(message.content).toContain("reason-compact-onComplete");
   });
 
-  it("the pi.sendUserMessage call delivers the delegate context alone, exact equality, with the followUp shape", async () => {
+  it("the pi.sendUserMessage call delivers the renewal context alone, exact equality, with the followUp shape", async () => {
     await fireOnComplete();
 
     const [content, options] = mockPi.sendUserMessage.mock.calls[0];
@@ -145,13 +145,13 @@ describe("delegate_to_agent compact restart — onComplete, with a registered de
   it("persists restartCount: 5 and lastReason equal to the reason passed to the tool", async () => {
     await fireOnComplete();
 
-    const after = readDelegateState(cwd, sessionId);
+    const after = readRenewalState(cwd, sessionId);
     expect(after!.restartCount).toBe(5);
     expect(after!.lastReason).toBe("reason-compact-onComplete");
   });
 });
 
-describe("delegate_to_agent compact restart — includeSummary: false", () => {
+describe("renew_session compact restart — includeSummary: false", () => {
   const sessionId = "restart-compact-payload-no-summary-session";
   let cwd: string;
   let mockPi: any;
@@ -188,7 +188,7 @@ describe("delegate_to_agent compact restart — includeSummary: false", () => {
   });
 });
 
-describe("delegate_to_agent compact restart — no registered context (decision 19's common case)", () => {
+describe("renew_session compact restart — no registered context (decision 19's common case)", () => {
   const sessionId = "restart-compact-payload-unregistered-session";
   let cwd: string;
   let mockPi: any;
@@ -216,7 +216,7 @@ describe("delegate_to_agent compact restart — no registered context (decision 
     expect(mockPi.sendUserMessage).toHaveBeenCalledTimes(1);
 
     const [content] = mockPi.sendUserMessage.mock.calls[0];
-    const headerIdx = content.indexOf("Agent delegation completed; context was reset.");
+    const headerIdx = content.indexOf("Session renewal completed; context was reset.");
     const ordinalIdx = content.indexOf("restart #1");
     const summaryIdx = content.indexOf("## Summary");
     const summaryTextIdx = content.indexOf("summary with nothing registered");
@@ -236,7 +236,7 @@ describe("delegate_to_agent compact restart — no registered context (decision 
   });
 });
 
-describe("delegate_to_agent compact restart — degraded path ('Nothing to compact'), with a registered context", () => {
+describe("renew_session compact restart — degraded path ('Nothing to compact'), with a registered context", () => {
   const sessionId = "restart-compact-payload-degraded-session";
   let cwd: string;
   let mockPi: any;
@@ -253,7 +253,7 @@ describe("delegate_to_agent compact restart — degraded path ('Nothing to compa
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("keeps the frozen degraded sentence and provenance, and still delivers the delegate context", async () => {
+  it("keeps the frozen degraded sentence and provenance, and still delivers the renewal context", async () => {
     const { compactOptions } = await runTool(mockPi, ctx, {
       reason: "reason-degraded",
       nextSteps: "next steps for the degraded case",
@@ -263,7 +263,7 @@ describe("delegate_to_agent compact restart — degraded path ('Nothing to compa
 
     const [message] = mockPi.sendMessage.mock.calls[0];
     expect(message.content).toContain(
-      "Agent delegation continued WITHOUT a context reset (Nothing to compact). Your previous context is still present — do not assume a clean slate."
+      "Session renewal continued WITHOUT a context reset (Nothing to compact). Your previous context is still present — do not assume a clean slate."
     );
     expect(message.content).toContain("restart #3");
 
@@ -272,7 +272,7 @@ describe("delegate_to_agent compact restart — degraded path ('Nothing to compa
   });
 });
 
-describe("delegate_to_agent compact restart — ordinal claimed before any side effect (decision 8)", () => {
+describe("renew_session compact restart — ordinal claimed before any side effect (decision 8)", () => {
   const sessionId = "restart-compact-payload-corrupt-session";
   let cwd: string;
   let mockPi: any;
@@ -289,15 +289,15 @@ describe("delegate_to_agent compact restart — ordinal claimed before any side 
   });
 
   it("with a corrupt record on disk, execute() rejects and ctx.compact is never called", async () => {
-    const dir = getDelegateStateDir(cwd);
+    const dir = getRenewalStateDir(cwd);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, `delegate-${sessionId}.json`), "{not json", "utf-8");
+    writeFileSync(join(dir, `renewal-${sessionId}.json`), "{not json", "utf-8");
 
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
 
     // Not a bare rejects.toThrow(): that passes on ANY throw, including a TypeError from a
-    // malformed mock ctx — the very failure this test exists to distinguish from. readDelegateState's
+    // malformed mock ctx — the very failure this test exists to distinguish from. readRenewalState's
     // contract is that it names the offending file, so assert on that message.
     await expect(
       tool.execute(
@@ -307,7 +307,7 @@ describe("delegate_to_agent compact restart — ordinal claimed before any side 
         undefined,
         ctx
       )
-    ).rejects.toThrow(join(dir, `delegate-${sessionId}.json`));
+    ).rejects.toThrow(join(dir, `renewal-${sessionId}.json`));
 
     expect(ctx.compact).not.toHaveBeenCalled();
   });

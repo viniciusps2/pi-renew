@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import extensionFactory from "../pi-renew";
-import { parseDelegateCommandArgs } from "../delegate-context";
+import { parseRenewCommandArgs } from "../renewal-context";
 
 /** Task 2.4 — the `/pi-renew` command: registration and flag parsing. */
 function makeMockPi(): any {
@@ -31,31 +31,31 @@ describe("pi-renew command registration (task 2.4)", () => {
   });
 });
 
-describe("parseDelegateCommandArgs (task 2.4)", () => {
+describe("parseRenewCommandArgs (task 2.4)", () => {
   it("parses and strips a leading --after-turn flag", () => {
-    expect(parseDelegateCommandArgs("--after-turn ran out of context")).toEqual({
+    expect(parseRenewCommandArgs("--after-turn ran out of context")).toEqual({
       afterTurn: true,
       rest: "ran out of context",
     });
   });
 
   it("defaults afterTurn to false with no flag", () => {
-    expect(parseDelegateCommandArgs("ran out of context")).toEqual({
+    expect(parseRenewCommandArgs("ran out of context")).toEqual({
       afterTurn: false,
       rest: "ran out of context",
     });
   });
 
   it("handles an empty string", () => {
-    expect(parseDelegateCommandArgs("")).toEqual({ afterTurn: false, rest: "" });
+    expect(parseRenewCommandArgs("")).toEqual({ afterTurn: false, rest: "" });
   });
 
   it("throws on an unknown leading flag, naming the flag", () => {
-    expect(() => parseDelegateCommandArgs("--bogus x")).toThrow("--bogus");
+    expect(() => parseRenewCommandArgs("--bogus x")).toThrow("--bogus");
   });
 
   it("treats a --after-turn appearing after payload text as payload, not a flag", () => {
-    expect(parseDelegateCommandArgs("restart now --after-turn")).toEqual({
+    expect(parseRenewCommandArgs("restart now --after-turn")).toEqual({
       afterTurn: false,
       rest: "restart now --after-turn",
     });
@@ -65,21 +65,21 @@ describe("parseDelegateCommandArgs (task 2.4)", () => {
   // <reason>` or `/pi-renew --after-turn -- <reason>`) so an ordinary reason string that
   // happens to start with `--` is never mistaken for a flag.
   it("-- --rerun after failure: the marker is consumed and everything after it is rest, even a --looking token", () => {
-    expect(parseDelegateCommandArgs("-- --rerun after failure")).toEqual({
+    expect(parseRenewCommandArgs("-- --rerun after failure")).toEqual({
       afterTurn: false,
       rest: "--rerun after failure",
     });
   });
 
   it("--after-turn -- x: both the flag and the marker are consumed", () => {
-    expect(parseDelegateCommandArgs("--after-turn -- x")).toEqual({
+    expect(parseRenewCommandArgs("--after-turn -- x")).toEqual({
       afterTurn: true,
       rest: "x",
     });
   });
 
   it("a bare -- with nothing after it yields an empty rest", () => {
-    expect(parseDelegateCommandArgs("--")).toEqual({ afterTurn: false, rest: "" });
+    expect(parseRenewCommandArgs("--")).toEqual({ afterTurn: false, rest: "" });
   });
 });
 
@@ -102,7 +102,7 @@ describe("registered pi-renew command handler (task 2.4)", () => {
     const [, options] = mockPi.registerCommand.mock.calls[0];
     const notify = vi.fn();
     const newSession = vi.fn().mockResolvedValue({ cancelled: false });
-    const cwd = mkdtempSync(join(tmpdir(), "delegate-command-test-"));
+    const cwd = mkdtempSync(join(tmpdir(), "renew-command-test-"));
     const ctx = {
       cwd,
       ui: { notify },

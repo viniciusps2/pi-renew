@@ -1,4 +1,4 @@
-# Pi Delegate Extension
+# The `pi-renew` extension
 
 ## What this is
 
@@ -10,7 +10,7 @@ the caller; the extension only carries it across the restart boundary.
 
 Four terms recur throughout this document:
 
-- **Delegate context** — the caller-registered text replayed into every restarted session. Stored
+- **Renewal context** — the caller-registered text replayed into every restarted session. Stored
   verbatim; never parsed for directives, paths or phases.
 - **Restart payload** — what the fresh session receives: a **prelude** (provenance, plus the summary
   and next steps when their toggles allow) and the **context**, delivered as two separate messages.
@@ -22,7 +22,7 @@ Four terms recur throughout this document:
 ## Installation
 
 `pi-renew` is installed as a `pi` **package**, not by copying a file. The extension is six modules
-(`pi-renew.ts` plus `config.ts`, `delegate-state.ts`, `delegate-context.ts`, `restart-payload.ts` and
+(`pi-renew.ts` plus `config.ts`, `renewal-state.ts`, `renewal-context.ts`, `restart-payload.ts` and
 `send-shapes.ts`); copying `pi-renew.ts` alone no longer works, because it would leave behind the
 five relative imports it needs.
 
@@ -66,7 +66,7 @@ so only this explicit `-e` path loads, nothing else configured on the machine.
 
 ## The three tools
 
-### `set_delegate_context`
+### `set_renewal_context`
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -76,18 +76,18 @@ so only this explicit `-e` path loads, nothing else configured on the machine.
 
 Registering resets the restart counter to `0`. When `context` opens with a slash command, the extension
 resolves it against the runtime's known commands **at registration time**, not at delivery time, and
-rejects the registration if it does not resolve — so a delegate context that could never expand is
+rejects the registration if it does not resolve — so a renewal context that could never expand is
 caught immediately, instead of being replayed as literal prose on every future restart.
 
 A context that resolves to `pi-renew`'s own restart command is rejected outright, since replaying it
 would restart forever:
 
-> Delegate context not registered: /pi-renew is this extension's own restart command, so replaying
+> Renewal context not registered: /pi-renew is this extension's own restart command, so replaying
 > it would restart forever. Register the work you want replayed, not the restart itself.
 
 ```json
 {
-  "name": "set_delegate_context",
+  "name": "set_renewal_context",
   "arguments": {
     "context": "/renew-loop implement tasks.md",
     "includeSummary": true,
@@ -96,29 +96,29 @@ would restart forever:
 }
 ```
 
-### `delegate_to_agent`
+### `renew_session`
 
-The delegation tool. Restarts the session — via whichever `strategy` is selected — carrying a summary
+The renewal tool. Restarts the session — via whichever `strategy` is selected — carrying a summary
 and next steps to the replacement.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `reason` | string, required | Why delegating (e.g. "completed analysis phase"). Becomes part of provenance. |
+| `reason` | string, required | Why the session is being renewed (e.g. "completed analysis phase"). Becomes part of provenance. |
 | `nextSteps` | string, required | What the next session should do. Free text; never parsed. |
-| `summary` | string, required | Structured delegation summary — see below. |
+| `summary` | string, required | Structured handover summary — see below. |
 | `nextModel` | string, optional | Model ID or alias to switch to before the next session starts. See [Model switching](#model-switching). |
 | `strategy` | string, optional | `"new-session"` or `"compact"`. See [Restart strategies](#restart-strategies). |
 
-`delegate_to_agent`'s parameter schema sets `additionalProperties: false`, so it rejects unknown
+`renew_session`'s parameter schema sets `additionalProperties: false`, so it rejects unknown
 parameters — a caller (or a stale prompt) passing a removed parameter fails loudly instead of being
 silently ignored. The other two tools do not set this.
 
 The `summary` parameter asks for six top-level sections: Goal, Constraints & Preferences, Progress, Key
 Decisions, Next Steps, and Critical Context.
 
-**Mode guard.** `delegate_to_agent` throws in `--mode print` and `--mode json`:
+**Mode guard.** `renew_session` throws in `--mode print` and `--mode json`:
 
-> delegate_to_agent requires a long-lived pi session and cannot run in --mode json. Use interactive pi
+> renew_session requires a long-lived pi session and cannot run in --mode json. Use interactive pi
 > or --mode rpc. Nothing was compacted and no continuation was queued.
 
 The reason is timing, not a blanket restriction on non-interactive use: `ctx.compact()` is
@@ -135,7 +135,7 @@ anything has completed. This is intentional, not a bug: no code path can know th
 
 ```json
 {
-  "name": "delegate_to_agent",
+  "name": "renew_session",
   "arguments": {
     "reason": "completed authentication analysis",
     "nextSteps": "implement unit tests for the auth module",
@@ -146,7 +146,7 @@ anything has completed. This is intentional, not a bug: no code path can know th
 }
 ```
 
-### `delegate_context_high`
+### `renew_from_handover`
 
 Completes the reminder-driven high-context handoff (see [High-context reminders](#high-context-reminders)).
 
@@ -156,25 +156,25 @@ Completes the reminder-driven high-context handoff (see [High-context reminders]
 
 It fails if no file exists at `handoverPath`:
 
-> Write the handover report first, then call delegate_context_high again. No file exists at: \<path\>
+> Write the handover report first, then call renew_from_handover again. No file exists at: \<path\>
 
 or if the file is empty after trimming:
 
-> The handover report file is empty. Write the handover report first, then call delegate_context_high
+> The handover report file is empty. Write the handover report first, then call renew_from_handover
 > again. Use this exact path: \<path\>
 
-On success it reads the file as the delegation summary, scans the session transcript for any
+On success it reads the file as the handover summary, scans the session transcript for any
 previously-mentioned `*/planning/**/*task*.md` paths, and appends them to the summary inside a
-`<last_tasks_read>` tag. It then calls `delegate_to_agent` internally, with `reason` set to `"context
+`<last_tasks_read>` tag. It then calls `renew_session` internally, with `reason` set to `"context
 usage too high"`, `nextSteps` pointing back at the handover path, and the **`new-session`** strategy —
-explicitly, regardless of `delegate_to_agent`'s own default — because the lineage `new-session` records
+explicitly, regardless of `renew_session`'s own default — because the lineage `new-session` records
 via `parentSession`, and the clean session file it produces, are the more useful post-mortem artifact for
 a handoff caused by running out of context window. See
 [What a restarted session receives](#what-a-restarted-session-receives) for what the fresh session gets.
 
 ```json
 {
-  "name": "delegate_context_high",
+  "name": "renew_from_handover",
   "arguments": {
     "handoverPath": ".pi/renew-loop/add-auth/handover-add-auth.md"
   }
@@ -183,7 +183,7 @@ a handoff caused by running out of context window. See
 
 ## The `/pi-renew` command
 
-The restart entry point. A human, or the extension itself (via `delegate_to_agent`'s `new-session`
+The restart entry point. A human, or the extension itself (via `renew_session`'s `new-session`
 strategy), invokes it to replace the current session with a fresh one that receives the assembled
 restart payload.
 
@@ -210,7 +210,7 @@ after such a collision gets nothing and has to use the suffixed name.
 
 ## Restart strategies
 
-`delegate_to_agent`'s optional `strategy` parameter selects how the restart happens.
+`renew_session`'s optional `strategy` parameter selects how the restart happens.
 
 ### `new-session`
 
@@ -226,19 +226,19 @@ that call entirely.
 
 The continuation is the same assembled payload the `new-session` strategy delivers (see
 [What a restarted session receives](#what-a-restarted-session-receives) below): provenance, then the
-summary and next steps under their toggles, then the registered delegate context as its own message. On
+summary and next steps under their toggles, then the registered renewal context as its own message. On
 success, a header sentence stating that the context was reset is **prepended to the prelude** — it is
 not sent on its own — so the one message that opens the fresh turn says both what happened to the
 context and what to do next. When `pi` reports there was nothing to compact, the continuation proceeds
 **without** a reset and says so explicitly, naming the reported reason — this is not a failure, just an
 honest continuation — and the degraded path delivers the payload too: nothing was reset, but the
-registered delegate context still has to be replayed, which is the whole point of the restart primitive.
+registered renewal context still has to be replayed, which is the whole point of the restart primitive.
 Note that this is not only a small-session case: `pi` refuses to compact whenever it can find no cut
 point with anything before it, which happens for any session whose token mass sits in its oldest
 entries, however large it is. Any other compaction error is a genuine failure and is reported on the
 transcript.
 
-**Current default.** `delegate_to_agent`'s `strategy` parameter currently defaults to `"compact"`. The
+**Current default.** `renew_session`'s `strategy` parameter currently defaults to `"compact"`. The
 intended eventual default is `"new-session"` — the flip is deliberately held back until the
 `new-session` path has had a verified live run, and is tracked as an open item in
 [`../../docs/STATUS.md`](../../docs/STATUS.md). Do not assume `new-session` is the default; pass
@@ -247,7 +247,7 @@ intended eventual default is `"new-session"` — the flip is deliberately held b
 ## What a restarted session receives
 
 The restart payload is assembled, in order, from: provenance (always), the agent-supplied summary (when
-`includeSummary`), the agent-supplied next steps (when `includeNextSteps`), and the registered delegate
+`includeSummary`), the agent-supplied next steps (when `includeNextSteps`), and the registered renewal
 context (when one is registered). When no context is registered, both toggles are forced to `true` — the
 summary and next steps are then the only thing the fresh session gets.
 
@@ -255,7 +255,7 @@ Provenance is the one unconditional line: the restart ordinal, an ISO timestamp,
 given to `/pi-renew`, carried through verbatim and uninterpreted.
 
 **Two messages, not one.** `pi` only expands a slash command when it is the *entire* message it
-receives. A single string that puts provenance before a delegate context beginning with `/skill:` or
+receives. A single string that puts provenance before a renewal context beginning with `/skill:` or
 `/<template>` could never expand — the runtime would see one long message, not a leading slash command,
 and deliver it as literal prose. So the payload is delivered as two separate messages: a **prelude**
 (provenance, plus summary and next steps) sent first without starting a turn, and the **context** sent
@@ -271,7 +271,7 @@ every string, whether or not it looks like a command. Dropping `expandPromptTemp
 `deliverAs` on a payload sent while the agent is still streaming delivers the message nowhere at all —
 the caller still observes success, and the only trace is an `extension_error` event.
 
-The prelude is the one message that uses neither shape, whenever a delegate context is registered: it
+The prelude is the one message that uses neither shape, whenever a renewal context is registered: it
 goes out as a custom message (`customType: "pi-renew-restart"`, `triggerTurn: false`) so that it
 lands in the transcript and the session file without starting a turn of its own. When no context is
 registered there is nothing else to deliver, so the prelude is sent as ordinary content instead — the
@@ -280,11 +280,15 @@ fresh session.
 
 ## Where the registered context lives
 
-Each session's registered delegate context is a JSON record at `.pi/loop/delegate-<sessionId>.json`,
+Each session's registered renewal context is a JSON record at `.pi/renew/renewal-<sessionId>.json`,
 under the project's working directory — not under `~/.pi/agent/`. It holds the context text, both
-toggles, the restart counter, and the registration timestamp. That directory name is historical and
-belongs to this extension alone: it is keyed by session id, and a caller's own documents — a
-`/renew-loop` handover, say — live wherever that caller puts them.
+toggles, the restart counter, and the registration timestamp. `.pi/renew/` belongs to this extension
+alone and is keyed by session id; a caller's own documents — a `/renew-loop` handover, say — live
+wherever that caller puts them, and are never written here.
+
+Records written by a version before the rename live at `.pi/loop/delegate-<sessionId>.json` and are
+not read. Nothing carries over: the record only matters across a live restart, so a stale one is
+simply ignored, and `.pi/loop/` can be deleted.
 
 Because extensions are re-instantiated on every session start, nothing about the registered context can
 live in memory across a restart. A `new-session` restart gives the replacement a *different* session id,
@@ -294,7 +298,7 @@ leaves exactly one of the two keys, never both, never neither. If the immediate 
 also missing, it walks up the chain of `parentSession` references recorded in each session file's
 header, up to 20 hops, looking for an ancestor's record to adopt.
 
-Records are reaped on every session start: any `delegate-*.json` file whose mtime is older than 14 days
+Records are reaped on every session start: any `renewal-*.json` file whose mtime is older than 14 days
 is deleted, except the current session's own record, which the sweep never touches regardless of age.
 
 ## When a restart fails
@@ -312,14 +316,14 @@ The source handles exactly five ways a restart can fail this way:
 
 1. The `/pi-renew` restart command could not be resolved — nothing was ever dispatched.
 2. `--after-turn` deferred the restart, and waiting for the run to go idle threw.
-3. The stored delegate-state record is corrupt JSON, or its version field is missing or unrecognised.
+3. The stored renewal-state record is corrupt JSON, or its version field is missing or unrecognised.
 4. `ctx.newSession()` threw.
 5. `ctx.newSession()` returned `{ cancelled: true }` without throwing — a session-replacement handler
    declined it.
 
 This list describes failures reported through the `/pi-renew` command handler — reached by every
 `new-session` restart, and by a human typing `/pi-renew` directly. On the `compact` strategy a
-corrupt delegate-state record instead fails the `delegate_to_agent` tool call itself, before anything is
+corrupt renewal-state record instead fails the `renew_session` tool call itself, before anything is
 compacted — an ordinary thrown tool error, not this channel — because at that point no compaction was
 requested and no message was queued, so nothing was attempted yet.
 
@@ -328,12 +332,12 @@ requested and no message was queued, so nothing was attempted yet.
 When the current session's context usage crosses a configured **fraction** of the model's context
 window, the extension injects a reminder message telling the agent to stop implementation work, write a
 complete handover report to a markdown file **of its own choosing** — the extension names no path of its
-own — and call `delegate_context_high` with that path. The reminder repeats every `repeatEveryTokens`
+own — and call `renew_from_handover` with that path. The reminder repeats every `repeatEveryTokens`
 after the threshold, until the session is compacted, at which point it can fire again.
 
 The threshold is recomputed from the model's live context window on every evaluation, never cached, so
 switching to a model with a different window changes the effective threshold with no configuration
-change needed. `delegate_context_high` is the tool that completes this flow — see
+change needed. `renew_from_handover` is the tool that completes this flow — see
 [The three tools](#the-three-tools) above.
 
 ### Configuration
@@ -369,7 +373,7 @@ the top fires with too little room left to write a handover before that compacti
 
 ## Model switching
 
-`delegate_to_agent`'s optional `nextModel` parameter switches the model before the next session starts,
+`renew_session`'s optional `nextModel` parameter switches the model before the next session starts,
 resolved against the same `models` array shown above: first as an exact model ID match, then as a
 case-insensitive match against any entry's `names` aliases. If nothing resolves, the current model is
 kept and the tool result says so.
@@ -382,7 +386,7 @@ runs on the requested model.
 
 Events subscribed:
 
-- `session_start` — adopts a predecessor's on-disk delegate-state record (if any) onto the new session
+- `session_start` — adopts a predecessor's on-disk renewal-state record (if any) onto the new session
   id, and reaps stale records. Never sends a message or injects a prompt.
 - `context` — evaluates the high-context reminder threshold on every context evaluation.
 - `session_compact` — resets the reminder milestone tracker, so the reminder can fire again after a

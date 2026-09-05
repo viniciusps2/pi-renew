@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import extensionFactory from "../pi-renew";
 import { Value } from "typebox/value";
 
-describe("delegate_to_agent tool parameters", () => {
+describe("renew_session tool parameters", () => {
   let mockPi: any;
 
   beforeEach(() => {

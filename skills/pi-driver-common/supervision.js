@@ -66,7 +66,7 @@ export function isSupervisionVerdict(v) {
 /**
  * Default supervision window, in milliseconds (60 s). Comfortably above the observed healthy
  * handover/replacement latency (a re-key was measured ~4 s after the send; the on-disk replacement
- * was born ~23 s after the trigger, per docs/delegate-restart-streaming-throw.md §14), so a
+ * was born ~23 s after the trigger, in the failure analysis this module came from), so a
  * slow-but-healthy handoff is not a false positive, while still bounding the wait. Overridable per
  * call; tests use small injected windows and never depend on this default.
  * @type {number}

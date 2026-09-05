@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import extensionFactory from "../pi-renew";
-import { getDelegateStatePath } from "../delegate-state";
+import { getRenewalStatePath } from "../renewal-state";
 
 /**
  * Task 3.6 — decision 12's three failure cases (newSession throws, newSession resolves
@@ -35,7 +35,7 @@ function makeMockToolCtx() {
   };
 }
 
-function getDelegateToAgentTool(mockPi: any) {
+function getRenewSessionTool(mockPi: any) {
   return mockPi.registerTool.mock.calls[0][0];
 }
 
@@ -137,7 +137,7 @@ describe("restart failure reporting (task 3.6, decision 12)", () => {
     function setup() {
       const mockPi = makeMockPi([]); // no matching command registered
       extensionFactory(mockPi);
-      const tool = getDelegateToAgentTool(mockPi);
+      const tool = getRenewSessionTool(mockPi);
       const mockCtx = makeMockToolCtx();
       return { mockPi, tool, mockCtx };
     }
@@ -206,9 +206,9 @@ describe("restart failure reporting (task 3.6, decision 12)", () => {
       extensionFactory(mockPi);
       const [, options] = mockPi.registerCommand.mock.calls[0];
       const sessionId = "session-corrupt";
-      const dir = join(cwd, ".pi", "loop");
+      const dir = join(cwd, ".pi", "renew");
       mkdirSync(dir, { recursive: true });
-      writeFileSync(getDelegateStatePath(cwd, sessionId), JSON.stringify({ version: 99 }), "utf-8");
+      writeFileSync(getRenewalStatePath(cwd, sessionId), JSON.stringify({ version: 99 }), "utf-8");
       const newSession = vi.fn().mockResolvedValue({ cancelled: false });
       const ctx = makeCommandCtx(cwd, sessionId, newSession);
       return { mockPi, handler: options.handler, ctx, newSession };

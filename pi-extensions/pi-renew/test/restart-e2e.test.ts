@@ -38,7 +38,7 @@
  * *restart* landed. The session file is the artifact that records it (F127).
  *
  * The `compact` strategy is deliberately **not** exercised here: it is reachable only
- * through the `delegate_to_agent` tool (the model must emit the call) and runs
+ * through the `renew_session` tool (the model must emit the call) and runs
  * fire-and-forget after the run settles (F128), so it has no deterministic raw-RPC trigger.
  * It is covered by `test/restart-compact-payload.test.ts` and lands live in the full-loop
  * batches (7.1 / 7.2) — see D-H84.
@@ -296,7 +296,7 @@ function driveRestart(
 
     const events: any[] = [];
     let promptSent = false;
-    let sawDelegateCommand = false;
+    let sawRenewCommand = false;
     let finished = false;
     let artifactLanded = false;
     let artifactPoll: NodeJS.Timeout | undefined;
@@ -313,7 +313,7 @@ function driveRestart(
       else
         reject(
           new Error(
-            sawDelegateCommand
+            sawRenewCommand
               ? "restart artifact never landed: no new session file with a numeric assistant usage.input " +
                 "within the watchdog window (the on-disk restart artifact F133 makes ~4 s readable)"
               : "extension did not load: `pi-renew` was never listed by get_commands " +
@@ -386,7 +386,7 @@ function driveRestart(
           Array.isArray(event?.data?.commands) &&
           event.data.commands.some((c: any) => c?.name === "pi-renew")
         ) {
-          sawDelegateCommand = true;
+          sawRenewCommand = true;
           clearInterval(gate);
           // The ENTIRE message is the command (F126 / decision 2): no leading prose, or `pi`
           // answers it as chat instead of dispatching. Any reason string works; use a marker.

@@ -21,7 +21,7 @@
  * delivers the D-H7 prelude (provenance + summary + next steps) as a custom
  * message with `triggerTurn: false`, so it lands in the transcript and the
  * session file without starting its own turn. The turn is the one
- * `sendPayload` triggers for the delegate context delivered right after it.
+ * `sendPayload` triggers for the renewal context delivered right after it.
  */
 
 export const RESTART_PRELUDE_CUSTOM_TYPE = "pi-renew-restart";
@@ -85,7 +85,7 @@ export function sendPayload(
 /**
  * Sends `prelude` as the D-H7 custom message: `customType:
  * "pi-renew-restart"`, `display: true`, `triggerTurn: false`. Does not
- * start a turn — the delegate context sent right after it (via
+ * start a turn — the renewal context sent right after it (via
  * `sendPayload`) is what triggers the fresh session's one turn.
  */
 export function sendRestartPrelude(
