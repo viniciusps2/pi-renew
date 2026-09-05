@@ -5,3 +5,6 @@ dist/
 # Runtime state written by the extension into whatever project it runs in.
 .pi/loop/delegate-*.json
 .pi/loop/restart-inflight-*.json
+
+# Research record kept locally, not published with the package.
+docs/delegate-restart-streaming-throw.md

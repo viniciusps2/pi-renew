@@ -595,8 +595,6 @@ running it re-derives exactly the context the brief exists to carry.
 - [`../pi-extensions/pi-renew/README.md`](../pi-extensions/pi-renew/README.md) — the extension's own
   reference: the three tools, the `/pi-renew` command, restart strategies, payload assembly, config
 - [`STATUS.md`](STATUS.md) — what is proven, what is outstanding, and the open runtime-version decision
-- [`delegate-restart-streaming-throw.md`](delegate-restart-streaming-throw.md) — the research behind the
-  restart-reliability work (a dated record)
 - `skills/subagent-brief`, `skills/subagent-review` — the briefing and review skills, used only in brief-and-review mode
 - `skills/subagent-brief/VERIFICATION-MENU.md` — which check earns its cost on which change (the
   T0–T3 tiers), and the command for it in each ecosystem

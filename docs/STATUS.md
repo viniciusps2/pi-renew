@@ -57,7 +57,7 @@ is outstanding.
 ### Workstream B — restart reliability
 
 Motivated by an on-disk failure (the `product-master` session `01a04384 → 01a043ca`) analysed in
-[`delegate-restart-streaming-throw.md`](delegate-restart-streaming-throw.md). Two defects:
+a research record kept outside this repo (`docs/delegate-restart-streaming-throw.md`). Two defects:
 
 - **D1 — unbounded success signal.** The tool returned an unqualified "restart is pending" with no
   in-flight state, so the model re-fired the trigger (five times in the instance) until the run was
