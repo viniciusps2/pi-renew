@@ -1,12 +1,15 @@
 ---
 name: subagent-brief
 description: >-
-  Write a delegation brief a cold-start sub-agent can execute without rework, producing a diff you
-  can actually review: the preflight sweeps, the tier that sizes how much verification the batch
-  earns, the decisions to fix up front, the nine-section structure, the improvement budget, and the
-  report contract. Runner- and language-agnostic — TypeScript, Java (Maven/Gradle), Python, shell.
-  Triggers: "write a brief for the sub-agent",
-  "delegate this task", "hand this task off", "prepare a delegation prompt".
+  Scoped to the `/renew-loop` protocol: its analyse phase invokes this to write the delegation brief
+  for one unit. Load it only while `/renew-loop` is running, or when the user names it outright
+  ("use subagent-brief", "/skill:subagent-brief") — never on your own initiative for an ordinary
+  hand-off, delegation or planning request, which is what keeps it out of the way of the user's own
+  skills. What it does: writes a brief a cold-start executor can carry out without rework, producing
+  a diff you can actually review — the preflight sweeps, the tier that sizes how much verification
+  the batch earns, the decisions to fix up front, the nine-section structure, the improvement budget,
+  and the report contract. Runner- and language-agnostic — TypeScript, Java (Maven/Gradle), Python,
+  shell.
 ---
 
 # Briefing a sub-agent

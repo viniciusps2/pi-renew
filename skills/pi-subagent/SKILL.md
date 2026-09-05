@@ -1,11 +1,13 @@
 ---
 name: pi-subagent
 description: >-
-  Run `pi` as a one-shot LLM sub-agent from the shell and get back just its final answer. Use to
-  delegate a self-contained task to a separate agent process — parallel fan-out, isolated or large
-  context that shouldn't pollute this conversation, tool-using research, structured extraction.
-  Triggers: "use pi as a subagent", "spawn a pi agent", "delegate this to pi", "fan out these
-  subtasks", "have a sub-agent do X".
+  Scoped to the `/renew-loop` protocol: its execute phase uses this to run a unit's implementation
+  child where no richer child runner (such as the `subagent` tool from `pi-subagents`) is installed.
+  Load it only while `/renew-loop` is running, or when the user names it outright ("use the
+  pi-subagent skill", "/skill:pi-subagent") — never on your own initiative when someone asks to
+  delegate, fan out or spawn an agent, which is what keeps it out of the way of the user's own
+  delegation tooling. What it does: runs `pi` as a one-shot LLM sub-agent from the shell and returns
+  just its final answer, for a self-contained task in a separate agent process.
 ---
 
 # pi as a sub-agent

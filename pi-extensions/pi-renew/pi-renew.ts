@@ -811,7 +811,7 @@ If a task file or plan file exists, update it before handing off and name it in 
     name: "set_delegate_context",
     label: "Set Delegate Context",
     description:
-      "Register the delegate context that is replayed into every session this loop restarts into. " +
+      "Register the delegate context that is replayed into every session this one restarts into. " +
       "The context is stored verbatim and never parsed: it can be prose, a '/skill:<name> <args>' command, " +
       "or a '/<template> <args>' command, which the runtime expands when the payload is delivered. " +
       "Registering resets the restart counter to 0.",

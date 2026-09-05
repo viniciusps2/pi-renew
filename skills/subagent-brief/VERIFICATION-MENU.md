@@ -1,7 +1,7 @@
 # The verification menu
 
 Which check earns its cost, on which change. `subagent-brief` **declares** the tier and the per-part
-plan; `subagent-review` **runs** what the tier selects; the `/loop` prompt carries the declaration
+plan; `subagent-review` **runs** what the tier selects; the `/renew-loop` prompt carries the declaration
 between phases.
 
 It exists to prevent two opposite failures, both of which have happened here:
@@ -235,7 +235,7 @@ output pasted. Without that, there is no evidence the test targets the bug rathe
 
 Read the diff and write your questions down **before** reading the child's report. The report is a
 map of where its author thinks the work is; reading it first anchors you there, and the defects are
-where they did not look. It costs nothing — it is an ordering rule, and it mirrors the one `/loop`
+where they did not look. It costs nothing — it is an ordering rule, and it mirrors the one `/renew-loop`
 already imposes on reviewer notes.
 
 ---

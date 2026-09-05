@@ -1,7 +1,7 @@
 {
   "name": "pi-renew",
   "version": "1.0.0",
-  "description": "A context-restart primitive for the pi coding agent, plus the /loop implementation protocol and the delegation skills it drives.",
+  "description": "A context-restart primitive for the pi coding agent, plus the /renew-loop implementation protocol and the delegation skills it drives.",
   "keywords": [
     "pi",
     "pi-package",
@@ -9,7 +9,8 @@
     "extension",
     "context-restart",
     "delegate",
-    "loop"
+    "loop",
+    "renew-loop"
   ],
   "license": "MIT",
   "repository": {

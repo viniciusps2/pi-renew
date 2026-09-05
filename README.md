@@ -9,23 +9,24 @@ on its own when the context window fills up. Either way the replacement session 
 your summary, your next steps, and — if you registered one — a **delegate context** replayed verbatim,
 which can be an entire workflow.
 
-That last part is what makes long work possible. This repo ships one workflow built on it: **`/loop`**,
-a prompt template that drives a task list to completion one unit at a time, restarting its own context
-between *analysing* a unit and *executing* it, so the executing agent never inherits the analysing
-agent's clutter.
+That last part is what makes long work possible. This repo ships one workflow built on it:
+**`/renew-loop`**, a prompt template that drives a task list to completion one unit at a time, restarting
+its own context between *analysing* a unit and *executing* it, so the executing agent never inherits the
+analysing agent's clutter.
 
 | Piece | What it is | What it does |
 |---|---|---|
 | [`pi-extensions/pi-renew`](pi-extensions/pi-renew) | an extension | the restart primitive: three tools and the `/pi-renew` command. Knows nothing about loops |
-| [`prompts/loop.md`](prompts/loop.md) | a prompt template | the `/loop` protocol: analyse → restart → execute → review → commit |
+| [`prompts/renew-loop.md`](prompts/renew-loop.md) | a prompt template | the `/renew-loop` protocol: analyse → restart → execute → review → commit |
 | [`skills/subagent-brief`](skills/subagent-brief) | a skill | writes the delegation brief a cold-start sub-agent can execute without rework |
 | [`skills/subagent-review`](skills/subagent-review) | a skill | reviews what came back — re-runs the gate, audits the diff, triages improvements |
-| [`skills/pi-subagent`](skills/pi-subagent) | a skill | runs `pi` as a one-shot child; `/loop`'s execute phase launches it every unit |
+| [`skills/pi-subagent`](skills/pi-subagent) | a skill | runs `pi` as a one-shot child; `/renew-loop`'s execute phase falls back to it when no richer child runner is installed |
 | [`skills/pi-driver-common`](skills/pi-driver-common) | a library | the shared driver discipline (model pinning, idle watchdog, exit codes, session folding). No `SKILL.md` — `pi` does not load it as a skill |
 
-The layering is the contract: `/loop` calls the pieces below it, and none of them knows anything about
-loops, phases or reasons. That ignorance is what lets the same extension and the same child runner
-serve callers with nothing to do with this protocol.
+The layering is the contract: `/renew-loop` calls the pieces below it, and none of them knows anything
+about loops, phases or reasons. That ignorance is what lets the same extension and the same child runner
+serve callers with nothing to do with this protocol. In the other direction the loop asks nothing of its
+environment: [what it uses when it is there](#works-best-with) is optional, every piece of it.
 
 ---
 
@@ -43,11 +44,12 @@ That writes a single entry into `~/.pi/agent/settings.json`, and the `pi` manife
 | Manifest field | What it registers |
 |---|---|
 | `extensions` | the restart tools and the `/pi-renew` command |
-| `prompts` | `/loop` |
+| `prompts` | `/renew-loop` |
 | `skills` | `subagent-brief`, `subagent-review`, `pi-subagent` — as one tree, so their relative references keep resolving |
 
 Nothing needs linking into `~/.pi/agent/prompts/` or `~/.pi/agent/skills/` by hand. Confirm with
-`/help` in a `pi` session: `/loop`, `/pi-renew` and the three `skill:` entries should all be there.
+`/help` in a `pi` session: `/renew-loop`, `/pi-renew` and the three `skill:` entries should all be
+there.
 
 Add `-l` to install project-locally (`.pi/settings.json`) instead. To pin a ref:
 `pi install git:github.com/viniciusps2/pi-renew@v1.0.0`. To try it for a single run without
@@ -55,7 +57,7 @@ installing: `pi -e git:github.com/viniciusps2/pi-renew`.
 
 **From a checkout** — do this if you intend to change anything, since `pi install` from a path tracks
 your working tree. Install the **repo root**, not `pi-extensions/pi-renew`: the inner directory is
-only the extension, and installing it gets you the tools without `/loop` or the skills.
+only the extension, and installing it gets you the tools without `/renew-loop` or the skills.
 
 ```bash
 git clone https://github.com/viniciusps2/pi-renew
@@ -63,7 +65,7 @@ pi install ./pi-renew
 ```
 
 **Or use the wrapper**, [`install.mjs`](install.mjs), which picks the source for you, reports what is
-registered, and cleans up an older setup. It is the package's `bin`, so from a checkout:
+registered, and cleans up an older setup. Run it from a checkout:
 
 ```bash
 ./install.mjs            # install (this checkout, since it is one)
@@ -72,14 +74,13 @@ registered, and cleans up an older setup. It is the package's `bin`, so from a c
 ./install.mjs --remove   # uninstall
 ```
 
-Once the package is on npm the same commands are `npx pi-renew …`, which installs from the registry
-rather than from a checkout. The wrapper only wraps `pi install`/`pi remove` — there is nothing it
-does that you cannot do by hand.
+The wrapper only wraps `pi install`/`pi remove` — there is nothing it does that you cannot do by hand.
 
 **Upgrading from the manual setup.** Earlier versions of these docs had you install
-`pi-extensions/pi-renew` and then symlink `prompts/loop.md` and `skills/` into `~/.pi/agent/`. That
-still works, but combined with a root install it registers everything twice — and a duplicate
-extension breaks this repo's own live tests. `./install.mjs --check` lists any leftovers;
+`pi-extensions/pi-renew` and then symlink `prompts/loop.md` and `skills/` into `~/.pi/agent/` — back
+when the prompt was `loop.md` and the command `/loop`; both are now `renew-loop`. That still works, but
+combined with a root install it registers everything twice — and a duplicate extension breaks this
+repo's own live tests. `./install.mjs --check` lists any leftovers;
 `./install.mjs --migrate` removes them. By hand:
 
 ```bash
@@ -110,8 +111,8 @@ follows a model switch with no config change. Keep it well clear of `1` — `pi`
 compaction at `contextWindow - reserveTokens`, and a reminder that fires too late has no room left to
 write a handover. `models` is optional and only powers `nextModel` aliases.
 
-Project trust — which `/loop` does not need, but this repo's own live tests do — is covered in
-[`docs/pi-loop.md`](docs/pi-loop.md#setup).
+Project trust — which `/renew-loop` does not need, but this repo's own live tests do — is covered in
+[`docs/renew-loop.md`](docs/renew-loop.md#setup).
 
 ---
 
@@ -154,7 +155,7 @@ work, write a complete handover to a markdown file **of its own choosing**, and 
 `delegate_context_high` with that path:
 
 ```json
-{ "name": "delegate_context_high", "arguments": { "handoverPath": ".pi/loop/handover.md" } }
+{ "name": "delegate_context_high", "arguments": { "handoverPath": ".pi/renew-loop/add-auth/handover-add-auth.md" } }
 ```
 
 The extension refuses if that file is missing or empty — the handover is the payload, so there is no
@@ -168,12 +169,12 @@ The interesting one. Register a **delegate context** once, and every restart rep
 the fresh session:
 
 ```json
-{ "name": "set_delegate_context", "arguments": { "context": "/loop implement tasks.md" } }
+{ "name": "set_delegate_context", "arguments": { "context": "/renew-loop implement tasks.md" } }
 ```
 
 | Registered context | What the fresh session receives |
 |---|---|
-| `/loop implement tasks.md` | the whole loop protocol, with your request inside it |
+| `/renew-loop implement tasks.md` | the whole loop protocol, with your request inside it |
 | `/skill:my-workflow arg` | the entire `SKILL.md` body, with `arg` appended |
 | plain prose | the prose |
 
@@ -189,15 +190,15 @@ is persisted, and what happens when a restart fails — is in
 
 ---
 
-## The `/loop` protocol
+## The `/renew-loop` protocol
 
-`/loop` is the workflow that registration makes possible. Point it at a task list; it works **one unit
-at a time**:
+`/renew-loop` is the workflow that registration makes possible. Point it at a task list; it works **one
+unit at a time**:
 
 ```
 TURN 1  (fresh session)                          TURN 2  (fresh context)
-├─ register "/loop <your request>" verbatim      ├─ read ONLY handover + brief
-├─ adopt this task list's handover, or create    ├─ launch the implementation child, wait
+├─ register "/renew-loop <request>" verbatim     ├─ read ONLY handover + brief
+├─ adopt this task list's handover, or create    ├─ run the unit — child agent, or here
 ├─ exit test · no-progress guard                 ├─ THEN read reviewer notes, review the diff
 ├─ pick ONE unit, size it (T0–T3)                ├─ minor → fix here · major → re-brief
 ├─ write brief · reviewer notes · handover       ├─ blocked? → 🔧 repair, or stop
@@ -206,22 +207,23 @@ TURN 1  (fresh session)                          TURN 2  (fresh context)
     high-context threshold)
 ```
 
-Everything after `/loop` is free text — there are no flags. You say what you want and the protocol
-maps it onto its parameters:
+Everything after `/renew-loop` is free text — there are no flags. You say what you want and the
+protocol maps it onto its parameters:
 
 | What you want | How you say it |
 |---|---|
 | Where the work is listed | `implement openspec/changes/add-x/tasks.md`, or the directory holding it |
-| Where state lives | `handover .pi/loop/handover.md` — optional; it finds or creates one otherwise |
+| Where state lives | `handover <path>` — optional; otherwise it finds this change's own, or creates `.pi/renew-loop/<change>/handover-<change>.md` |
 | Keep going by itself | `continue automatically until all tasks are done` |
 | Check in between units | `ask me before each next unit` |
 | Don't restart at all | `do everything in this session, no context restart` |
 | Bound an automatic run | `max 12 restarts` |
+| Apply the change at the end | `archive the change when the list is empty` (OpenSpec) |
 | A report at the end | `summarize the results` |
 
 ```
 $ cd <repo> && pi
-> /loop implement openspec/changes/add-x/tasks.md, handover .pi/loop/handover.md, review each unit, commit
+> /renew-loop implement openspec/changes/add-x/tasks.md, review each unit, commit
 ```
 
 Two independent checks run at the top of every analyse phase: the **exit test** (no open unit left →
@@ -238,7 +240,49 @@ the loop stops and asks. The line is the design, never the file.
 > least once. It is the one guard with nothing behind it.
 
 Full documentation — setup, writing the request, worked examples, what happens under the hood,
-troubleshooting, and the design rationale — is in [`docs/pi-loop.md`](docs/pi-loop.md).
+troubleshooting, and the design rationale — is in [`docs/renew-loop.md`](docs/renew-loop.md).
+
+---
+
+## Works best with
+
+Two third-party tools make `/renew-loop` markedly better, and neither is required. Install them for
+your whole environment or just for one project — the loop probes for whatever is reachable from the
+session it is running in, and picks it up with no configuration of its own:
+
+```bash
+# environment-wide
+pi install npm:pi-subagents             # https://github.com/nicobailon/pi-subagents
+npm install -g @fission-ai/openspec     # https://github.com/Fission-AI/OpenSpec
+
+# or per project, from the project root
+pi install npm:pi-subagents -l          # writes .pi/settings.json
+npm install -D @fission-ai/openspec && npx openspec init
+```
+
+- **[`pi-subagents`](https://github.com/nicobailon/pi-subagents)** — child agents (`worker`, `reviewer`,
+  `scout`, `oracle`, …) behind a `subagent` tool. The execute phase hands each unit to a `worker` child
+  and can put a `reviewer` on the diff, so the loop's own context stays clean across many more units
+  than it otherwise would.
+- **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** — spec-driven changes: one
+  `openspec/changes/<change>/` directory with a spec delta and a `tasks.md` already written as
+  checkboxes, which is exactly the shape this loop consumes. The loop reads the change through
+  `openspec show`/`status`, gates spec-touching units with `openspec validate --strict`, and — when your
+  request asks for it — **applies the change** with `openspec archive` once the list is empty.
+
+**Without them, the loop still runs, and it says so.** Every dependency is a lane with a floor
+underneath it:
+
+| Lane | With the companion | Without it |
+|---|---|---|
+| running a unit | `subagent` → `worker`, then a `reviewer` pass | this repo's `pi-subagent` skill; and with no child runner at all, the loop implements the unit itself from the brief |
+| the task list | an OpenSpec `tasks.md`, used as it comes | any markdown checklist — and if the file has units but no checkboxes, the loop **adds `- [ ]` to each unit line** in its own commit, because both of its termination checks need something to tick. Prose with no list at all is transcribed into `.pi/renew-loop/<change>/tasks-<change>.md`, one box per step the document names |
+| brief and review | `subagent-brief`, `subagent-review` | the loop writes the brief and the reviewer notes itself, to the outlines in the protocol |
+| the restart | `pi-renew` | no-restart mode — both phases in one session |
+
+The lane taken is recorded in the handover's `Environment:` line and named in the phase's report, so a
+run that fell back is visible rather than mysterious. The loop never installs anything, and never stops
+because something is missing.
 
 ---
 
@@ -246,7 +290,7 @@ troubleshooting, and the design rationale — is in [`docs/pi-loop.md`](docs/pi-
 
 | Document | What it covers |
 |---|---|
-| [`docs/pi-loop.md`](docs/pi-loop.md) | **The loop, end to end** — setup, quick start, how to phrase a request, the two restart triggers, automatic continuation and its guards, troubleshooting, design notes |
+| [`docs/renew-loop.md`](docs/renew-loop.md) | **The loop, end to end** — setup, quick start, how to phrase a request, the two restart triggers, automatic continuation and its guards, troubleshooting, design notes |
 | [`pi-extensions/pi-renew/README.md`](pi-extensions/pi-renew/README.md) | **The extension reference** — the three tools, the `/pi-renew` command, restart strategies, payload assembly and the two send shapes, delegate-state persistence, failure reporting, high-context reminders, model switching |
 | [`docs/STATUS.md`](docs/STATUS.md) | **What is actually proven** — the verification run, what is still outstanding, and the open decisions (including the `strategy` default and the runtime-version question) |
 | [`docs/delegate-restart-streaming-throw.md`](docs/delegate-restart-streaming-throw.md) | **Research** — why a restart could fail silently with "Agent is already processing", the two defects that came out of it, and the evidence. A dated record, not current documentation |
@@ -273,8 +317,8 @@ see [`docs/STATUS.md`](docs/STATUS.md#verified-here), which also records what is
 
 `.claude/skills/` holds two development-only drivers — `pi-subagent-rpc` (headless, structured events)
 and `pi-subagent-tmux` (a real TUI in a tmux pane) — for driving a long-lived `pi` from outside while
-testing this tooling. They sit outside `skills/` deliberately, so `pi` never loads them and `/loop`
-can never reach them.
+testing this tooling. They sit outside `skills/` deliberately, so `pi` never loads them and
+`/renew-loop` can never reach them.
 
 ## License
 

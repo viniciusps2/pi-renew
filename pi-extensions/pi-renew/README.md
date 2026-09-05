@@ -29,7 +29,7 @@ five relative imports it needs.
 ### Normally: install the repository
 
 Install the **repository root**, which carries the `pi` manifest and registers this extension
-alongside the `/loop` prompt and the skills it drives:
+alongside the `/renew-loop` prompt and the skills it drives:
 
 ```bash
 pi install git:github.com/viniciusps2/pi-renew
@@ -42,7 +42,7 @@ path, so a subdirectory URL fails the clone.
 
 ### Extension only, from a checkout
 
-Take this path when you want the restart primitive **without** `/loop` and the skills. The paths are
+Take this path when you want the restart primitive **without** `/renew-loop` and the skills. The paths are
 written relative to the repository root; run them from there, or substitute the path to this
 directory.
 
@@ -89,7 +89,7 @@ would restart forever:
 {
   "name": "set_delegate_context",
   "arguments": {
-    "context": "/loop implement tasks.md",
+    "context": "/renew-loop implement tasks.md",
     "includeSummary": true,
     "includeNextSteps": true
   }
@@ -176,7 +176,7 @@ a handoff caused by running out of context window. See
 {
   "name": "delegate_context_high",
   "arguments": {
-    "handoverPath": ".pi/loop/handover-2026-08-24.md"
+    "handoverPath": ".pi/renew-loop/add-auth/handover-add-auth.md"
   }
 }
 ```
@@ -282,7 +282,9 @@ fresh session.
 
 Each session's registered delegate context is a JSON record at `.pi/loop/delegate-<sessionId>.json`,
 under the project's working directory — not under `~/.pi/agent/`. It holds the context text, both
-toggles, the restart counter, and the registration timestamp.
+toggles, the restart counter, and the registration timestamp. That directory name is historical and
+belongs to this extension alone: it is keyed by session id, and a caller's own documents — a
+`/renew-loop` handover, say — live wherever that caller puts them.
 
 Because extensions are re-instantiated on every session start, nothing about the registered context can
 live in memory across a restart. A `new-session` restart gives the replacement a *different* session id,

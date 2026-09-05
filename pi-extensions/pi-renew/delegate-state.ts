@@ -219,7 +219,7 @@ export function writeDelegateState(
  * handler (previously `pi-renew.ts:789-796`) so the `compact` restart path can claim the
  * same counter without duplicating the increment — two independent increments would let the
  * two strategies disagree about how many restarts have happened, which silently defeats an
- * outer `/loop` protocol's `max N restarts` bound (the only thing that bound reads is this
+ * outer `/renew-loop` protocol's `max N restarts` bound (the only thing that bound reads is this
  * counter). No record on disk means nothing was ever registered: the ordinal is still 1 (the
  * first restart is always #1), but there is no record to write back, so nothing is written —
  * callers that need to know whether a record existed get it back in `record`.

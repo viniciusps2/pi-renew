@@ -4,7 +4,7 @@
  * pi-renew installer.
  *
  * `pi install` already registers everything this repo ships — the extension, the skills tree and
- * the /loop prompt — from the `pi` manifest in package.json. This wrapper exists for two things
+ * the /renew-loop prompt — from the `pi` manifest in package.json. This wrapper exists for two things
  * `pi install` cannot do on its own: pick the right source automatically, and clean up the older
  * manual setup (inner-package entry plus hand-made symlinks) that predates the manifest.
  *
@@ -13,8 +13,6 @@
  *   ./install.mjs --migrate   install, then remove the legacy manual setup
  *   ./install.mjs --remove    uninstall
  *   ./install.mjs --check     report what is installed and exit
- *
- * Published to npm, the same commands are `npx pi-renew …` — this file is the package `bin`.
  */
 
 import { spawnSync } from "node:child_process";
@@ -31,7 +29,7 @@ const has = (...names) => names.some((n) => args.includes(n));
 
 if (has("--help", "-h")) {
   console.log(`
-pi-renew - context-restart primitive for pi, plus the /loop protocol and its skills
+pi-renew - context-restart primitive for pi, plus the /renew-loop protocol and its skills
 
 Usage:
   install.mjs              Install (uses this checkout if run from one, else the remote)
@@ -40,12 +38,14 @@ Usage:
   install.mjs --remove     Uninstall
   install.mjs --check      Report what is installed, change nothing
 
-Published to npm, the same commands are: npx pi-renew ...
-
 One install registers all three resource kinds from the package manifest:
   extension  ->  the delegate_to_agent tools and the /pi-renew command
-  prompts    ->  /loop
+  prompts    ->  /renew-loop
   skills     ->  subagent-brief, subagent-review, pi-subagent (+ the pi-driver-common library)
+
+Optional companions the loop uses when they are installed, and does without when they are not:
+  pi install npm:pi-subagents            child agents for the execute phase
+  npm install -g @fission-ai/openspec    spec-driven changes and \`openspec archive\`
 `);
   process.exit(0);
 }
@@ -119,7 +119,9 @@ function findLegacy() {
     .map((entry) => ({ entry, removable: resolve(settingsDir, entry) }));
 
   const links = [];
-  const candidates = [join(agentDir, "prompts", "loop.md")];
+  // Both prompt names: `loop.md` is what the pre-rename instructions linked, `renew-loop.md` what a
+  // link made since would be called.
+  const candidates = [join(agentDir, "prompts", "loop.md"), join(agentDir, "prompts", "renew-loop.md")];
   const skillsDir = join(agentDir, "skills");
   if (existsSync(skillsDir)) {
     for (const name of listDir(skillsDir)) candidates.push(join(skillsDir, name));
@@ -143,7 +145,7 @@ function findLegacy() {
  * and a link into someone else's skills/ tree is not.
  */
 function ownedByPiRenew(target) {
-  // The three shapes the old instructions produced: <root>/prompts/loop.md, <root>/skills, and
+  // The three shapes the old instructions produced: <root>/prompts/*.md, <root>/skills, and
   // <root>/skills/<one-skill>. Each names a candidate package root and the tree it sits in.
   const candidates = [
     { root: resolve(target, "..", ".."), tree: basename(dirname(target)) },
@@ -231,8 +233,8 @@ if (has("--migrate")) {
 
 console.log(`
 pi-renew installed. In a pi session:
-  /loop <task list>   run the loop protocol
-  /pi-renew           inspect and control the restart primitive
+  /renew-loop <task list>   run the loop protocol
+  /pi-renew                 inspect and control the restart primitive
 
 Optional — turn on the automatic high-context restart in ${join(agentDir, "pi-renew.json")}:
   { "highContextReminder": { "enabled": true, "thresholdFraction": 0.85 } }

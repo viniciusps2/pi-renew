@@ -4,7 +4,7 @@ What an agent may improve **on its own authority** while implementing or reviewi
 must propose instead, and what it must escalate — plus, in the 🔧 lane at the end, the one thing it
 may **repair outside its allowed files**, because the unit cannot land until somebody does. Shared by
 `subagent-brief` (which states the budget as a constraint), `subagent-review` (which triages what
-came back), and the `/loop` driver (which decides where an escalation goes).
+came back), and the `/renew-loop` driver (which decides where an escalation goes).
 
 The problem it solves: without a sanctioned path, a real improvement either gets **smuggled into the
 functional diff** — where it destroys the review surface, because you can no longer tell the feature

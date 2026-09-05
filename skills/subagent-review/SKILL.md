@@ -1,12 +1,15 @@
 ---
 name: subagent-review
 description: >-
-  Review work produced by another agent — a delegated sub-agent run, another Claude session, a cloud
-  agent, an agent-authored PR — by re-running the gate yourself and auditing the diff for the
-  defects a green suite cannot catch, at a depth sized to the change, then triaging what is merely
-  worth improving. Runner- and language-agnostic — TypeScript, Java (Maven/Gradle), Python, shell.
-  Triggers: "review what the sub-agent returned", "check the
-  delegated work", "verify this agent's diff", "review this agent-authored PR".
+  Scoped to the `/renew-loop` protocol: its analyse phase writes reviewer notes from these criteria
+  and its execute phase reviews the unit's diff against them. Load it only while `/renew-loop` is
+  running, or when the user names it outright ("use subagent-review", "/skill:subagent-review") —
+  never on your own initiative for an ordinary review request, which is what keeps it out of the way
+  of the user's own skills. What it does: reviews work produced by another agent — a delegated child
+  run, another session, a cloud agent, an agent-authored PR — by re-running the gate yourself and
+  auditing the diff for the defects a green suite cannot catch, at a depth sized to the change, then
+  triaging what is merely worth improving. Runner- and language-agnostic — TypeScript, Java
+  (Maven/Gradle), Python, shell.
 ---
 
 # Reviewing delegated work

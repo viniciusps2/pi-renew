@@ -37,7 +37,7 @@ report "extension did not load" and nothing says why:
 
 ## Outstanding
 
-### Workstream A — the restart primitive and the `/loop` protocol
+### Workstream A — the restart primitive and the `/renew-loop` protocol
 
 The plan recorded **37 of 42** items done. All five open items are *live-run* items; none is unwritten
 code.
@@ -47,8 +47,8 @@ code.
 | Non-mocked e2e, `compact` half | The `new-session` half is green (above). The `compact` scenario is model-gated and fire-and-forget, with no deterministic raw-RPC trigger; its payload is covered by `test/restart-compact-payload.test.ts`, and its live run belongs to the full-loop runs below |
 | Live run with `restart: none` | The cheapest first validation of the *workflow*: one ordinary session, no extension, no harness — so loop bugs and restart bugs cannot be confused for each other |
 | Full loop under `continuation: ask` | analyse → restart → execute → review → commit → report → wait; the fresh session's `usage.input` at the baseline floor; answering "yes" starts the next unit and increments the restart ordinal |
-| Full loop under `continuation: auto`, on a deliberately unclosable unit | The no-progress guard must fire within one cycle and stop with a report naming the unit, with no commit for the failed unit. **This guard has never fired in anger** — see the recommendation in [`pi-loop.md`](pi-loop.md#automatic-continuation) |
-| Final reconciliation of [`pi-loop.md`](pi-loop.md) | Everything except one clause has landed: the banner is honest, and every example and the under-the-hood diagram are reconciled against `prompts/loop.md`. What is left is folding in any troubleshooting entry the two full-loop runs surface — a close-out obligation on them |
+| Full loop under `continuation: auto`, on a deliberately unclosable unit | The no-progress guard must fire within one cycle and stop with a report naming the unit, with no commit for the failed unit. **This guard has never fired in anger** — see the recommendation in [`renew-loop.md`](renew-loop.md#automatic-continuation) |
+| Final reconciliation of [`renew-loop.md`](renew-loop.md) | Everything except one clause has landed: the banner is honest, and every example and the under-the-hood diagram are reconciled against `prompts/renew-loop.md`. What is left is folding in any troubleshooting entry the two full-loop runs surface — a close-out obligation on them |
 
 ### Workstream B — restart reliability
 
@@ -89,7 +89,7 @@ Open — all of it **driver-side**:
 **1. `delegate_to_agent`'s default `strategy` is still `compact`.** The intended eventual default is
 `new-session`; the flip was held back until the `new-session` path had a verified live run. That run
 is now green (above), so the flip is unblocked — but it is a **breaking change** for any caller
-relying on the current default and has not been made. `/loop` is unaffected either way: it passes
+relying on the current default and has not been made. `/renew-loop` is unaffected either way: it passes
 `new-session` explicitly on every call, and must keep doing so, because `compact` does not replay a
 registered delegate context.
 
