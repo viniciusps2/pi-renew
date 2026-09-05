@@ -1,11 +1,11 @@
 ---
 name: pi-subagent
 description: >-
-  Scoped to the `/renew-loop` protocol: its execute phase uses this to run a unit's implementation
-  child where no richer child runner (such as the `subagent` tool from `pi-subagents`) is installed.
-  Load it only while `/renew-loop` is running, or when the user names it outright ("use the
-  pi-subagent skill", "/skill:pi-subagent") — never on your own initiative when someone asks to
-  delegate, fan out or spawn an agent, which is what keeps it out of the way of the user's own
+  Scoped to `/renew-loop`: its opt-in **brief-and-review** mode runs a unit through this when no
+  `subagent` tool (from `pi-subagents`) is installed, and the plain loop uses it only when the request
+  asks for the work to be delegated. Load it only in those cases, or when the user names it outright
+  ("use the pi-subagent skill", "/skill:pi-subagent") — never on your own initiative when someone asks
+  to delegate, fan out or spawn an agent, which is what keeps it out of the way of the user's own
   delegation tooling. What it does: runs `pi` as a one-shot LLM sub-agent from the shell and returns
   just its final answer, for a self-contained task in a separate agent process.
 ---

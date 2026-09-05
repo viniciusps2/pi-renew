@@ -1,15 +1,15 @@
 ---
 name: subagent-review
 description: >-
-  Scoped to the `/renew-loop` protocol: its analyse phase writes reviewer notes from these criteria
-  and its execute phase reviews the unit's diff against them. Load it only while `/renew-loop` is
-  running, or when the user names it outright ("use subagent-review", "/skill:subagent-review") —
-  never on your own initiative for an ordinary review request, which is what keeps it out of the way
-  of the user's own skills. What it does: reviews work produced by another agent — a delegated child
-  run, another session, a cloud agent, an agent-authored PR — by re-running the gate yourself and
-  auditing the diff for the defects a green suite cannot catch, at a depth sized to the change, then
-  triaging what is merely worth improving. Runner- and language-agnostic — TypeScript, Java
-  (Maven/Gradle), Python, shell.
+  Scoped to `/renew-loop`'s opt-in **brief-and-review** mode: its analyse turn writes reviewer notes
+  from these criteria, and its execute turn reviews the unit's diff against them. Load it only while
+  that mode is running, or when the user names it outright ("use subagent-review",
+  "/skill:subagent-review") — never on your own initiative for an ordinary review request, which is
+  what keeps it out of the way of the user's own skills. What it does: reviews work produced by
+  another agent — a delegated child run, another session, a cloud agent, an agent-authored PR — by
+  re-running the gate yourself and auditing the diff for the defects a green suite cannot catch, at a
+  depth sized to the change, then triaging what is merely worth improving. Runner- and
+  language-agnostic — TypeScript, Java (Maven/Gradle), Python, shell.
 ---
 
 # Reviewing delegated work
@@ -24,7 +24,9 @@ Neither shows in the report; neither is caught by re-running the suite.
 
 Where the work arrived with a [REPORT-CONTRACT.md](../subagent-brief/REPORT-CONTRACT.md) report,
 phase 3 audits it section by section. Where it did not, **treat every section as unanswered** — the
-checks still apply, you just run them with no map. Rationale: [README.md](README.md).
+checks still apply, you just run them with no map. That includes work this session ran itself for want
+of a child runner: your own memory of writing the code is not evidence, and it is the least reliable
+map of the three, because it points exactly where you already looked. Rationale: [README.md](README.md).
 
 Runner- and language-agnostic: the checks are the same for TypeScript, Java, Python and shell, and
 only the commands change. Per-ecosystem commands are in
@@ -234,17 +236,17 @@ Anything you or the agent noticed that is *better*, rather than *wrong*, goes th
 - **🔴 escalate** — it would change a decision the spec, design or brief fixes; the public surface; a
   dependency; or the protocol or state machine.
 
-**Where a 🔴 goes depends on the continuation mode, and only this depends on it:**
+**Where a 🔴 goes depends on whether a person is about to read this turn, and only this depends on it:**
 
-| Mode | What happens |
+| How the run is driven | What happens |
 |---|---|
-| `stop` / `ask` / a one-off delegation | Surface it to the user at the natural stopping point, as numbered options with a recommendation |
-| **`auto`** | **Do not stop the loop.** Append it to the handover's `## Decisions pending` section, name it in the turn's progress line, and continue to the next unit |
+| A person sees the turn — it pauses between turns, it is the last turn, or it is a one-off delegation | Surface it at the natural stopping point, as numbered options with a recommendation |
+| **Unattended** — it restarts into the next turn by itself | **Do not stop the run.** Append it to the handover's `## Decisions pending` section, name it in the turn's progress line, and continue |
 
 An opportunistic improvement is never on the unit's critical path, so deferring one cannot make the
-unit wrong — and halting an unattended loop for an opportunity is the wrong trade. **This carve-out
+unit wrong — and halting an unattended run for an opportunity is the wrong trade. **This carve-out
 covers improvements only.** A correctness finding, an ambiguity about intent, or a second review
-escalation of the same unit still stops the loop in every mode. If you are reaching for this rule to
+escalation of the same unit still stops the run either way. If you are reaching for this rule to
 avoid stopping, what you are holding is not an improvement.
 
 ### The blocked case — 🔧 repair, or a decision

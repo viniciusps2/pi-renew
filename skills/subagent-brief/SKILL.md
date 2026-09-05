@@ -1,15 +1,15 @@
 ---
 name: subagent-brief
 description: >-
-  Scoped to the `/renew-loop` protocol: its analyse phase invokes this to write the delegation brief
-  for one unit. Load it only while `/renew-loop` is running, or when the user names it outright
-  ("use subagent-brief", "/skill:subagent-brief") — never on your own initiative for an ordinary
-  hand-off, delegation or planning request, which is what keeps it out of the way of the user's own
-  skills. What it does: writes a brief a cold-start executor can carry out without rework, producing
-  a diff you can actually review — the preflight sweeps, the tier that sizes how much verification
-  the batch earns, the decisions to fix up front, the nine-section structure, the improvement budget,
-  and the report contract. Runner- and language-agnostic — TypeScript, Java (Maven/Gradle), Python,
-  shell.
+  Scoped to `/renew-loop`'s opt-in **brief-and-review** mode, whose analyse turn invokes this to write
+  one unit's delegation brief. Load it only while that mode is running, or when the user names it
+  outright ("use subagent-brief", "/skill:subagent-brief") — never on your own initiative for an
+  ordinary hand-off, delegation or planning request, which is what keeps it out of the way of the
+  user's own skills. What it does: writes a brief a cold-start executor can carry out without rework,
+  producing a diff you can actually review — the preflight sweeps, the tier that sizes how much
+  verification the batch earns, the decisions to fix up front, the nine-section structure, the
+  improvement budget, and the report contract. Runner- and language-agnostic — TypeScript, Java
+  (Maven/Gradle), Python, shell.
 ---
 
 # Briefing a sub-agent
@@ -22,6 +22,14 @@ someone who was not there.
 **State the precedence rule in every brief:** *the brief fixes decisions; the source documents carry
 the detail.* Point at the task file and spec sections and require them to be read first. Never
 restate their content — a restatement drifts and the sub-agent cannot tell which one wins.
+
+**Find the executor before you write the brief.** A brief is written *for* whoever runs it, so settle
+that first, in this order: a **`subagent` tool** (from `pi-subagents`) — the best case, a real child
+session per unit; else the **`pi-subagent` skill** in this package, a one-shot `pi` child; else
+**this session**, continuing with the brief as its own instructions. The absence of a runner does not
+cancel the brief: a cold executor and a same-session executor need the same decisions fixed, and the
+brief is what makes the result checkable by someone who was not there. Name the executor you found at
+the top of the brief, so the review knows what it is reviewing.
 
 Pair with `subagent-review` (verifying what comes back) and [REPORT-CONTRACT.md](REPORT-CONTRACT.md)
 (the seam between them). [VERIFICATION-MENU.md](VERIFICATION-MENU.md) decides how much checking this

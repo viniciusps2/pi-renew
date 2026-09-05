@@ -1,8 +1,8 @@
 # The verification menu
 
 Which check earns its cost, on which change. `subagent-brief` **declares** the tier and the per-part
-plan; `subagent-review` **runs** what the tier selects; the `/renew-loop` prompt carries the declaration
-between phases.
+plan; `subagent-review` **runs** what the tier selects; in `/renew-loop`'s brief-and-review mode the
+brief carries the declaration from the analyse turn to the execute turn.
 
 It exists to prevent two opposite failures, both of which have happened here:
 

@@ -1,11 +1,15 @@
 ---
-description: Analyse one unit of work, restart the context, then execute and review it — repeat over a task list.
-argument-hint: <what to implement, optionally where the handover lives, and any options>
+description: Repeat a turn — do the work, write the handover, restart with a fresh context — until a stop condition or the turn budget.
+argument-hint: <what to do each turn, when to stop, and any options>
 ---
 
-You are running the `/renew-loop` protocol: drive a task list to completion one **unit** at a time —
-analyse a unit, restart your context, then execute and review it. A unit is whatever one item the
-request's task list points at (one checkbox, one task, one section). Never more than one per cycle.
+You are running the `/renew-loop` protocol: repeat one **turn** of work until a stop condition is met
+or the turn budget runs out. Each turn is its own session with a fresh context, and everything the
+next turn needs is in a handover file — not in the conversation, which the restart throws away.
+
+The default loop is deliberately plain: read the handover, do the next piece of work, record what
+happened, restart. Nothing else is required — no sub-agents, no skills, no spec tool. What those add
+is opt-in, and the request is what turns it on.
 
 Background, setup and troubleshooting live in `pi-renew/docs/renew-loop.md`. You do not need it.
 
@@ -19,137 +23,168 @@ Map it onto the parameters below by intent — there are no flags.
 
 | Signal in the request | Parameter it fixes |
 |---|---|
-| a path to a checklist, tasks file, or spec section | the task list to read and update |
-| a plan, an openspec change, or the directory holding one | the task list **inside** it — Step 3 resolves which |
-| `handover <path>` (e.g. `.pi/renew-loop/add-auth/handover-add-auth.md`) | where handover, brief and reviewer notes live |
-| nothing about a handover | Step 3 finds the one this task list already has, or creates it |
-| nothing about continuing | continuation `stop` — the default |
-| "ask me…", "check in before…", "before each next unit" | continuation `ask` |
-| "continue automatically", "keep going", "until … done" | continuation `auto` |
-| "no context restart", "do everything in this session" | restart `none` — see No-restart mode |
-| no such phrase | restart `new-session`, passed explicitly every time |
-| "max N restarts" | the restart budget, checked against the provenance ordinal |
-| "archive the change", "apply the change when it's done" | after the exit test passes, close the OpenSpec change — see OpenSpec |
-| "summarize the results", "report at the end" | produce The final report |
+| a goal, a task list, a checklist, a plan, a thing to repeat | the work each turn advances |
+| `stop when …`, `until …`, `once … passes` | the stop condition |
+| `max N turns`, `max N restarts` | the turn budget — **default 10** |
+| `handover <path>` | where the handover lives |
+| nothing about a handover | Step 2 finds this work's own, or creates it |
+| `ask me between turns`, `check in each turn` | pause after each turn instead of restarting |
+| `one turn only`, `do one unit and stop` | a budget of 1 |
+| `no context restart`, `do everything in this session` | No-restart mode |
+| no such phrase | restart `new-session`, passed explicitly every turn |
+| `apply with subagent review`, `brief and review each unit`, `delegate each unit` | **brief-and-review mode** — opt-in, below |
+| `summarize the results`, `report at the end` | produce The final report |
 | nothing about a summary | no report — end with a short completion statement |
 
-Never guess a missing parameter. Step 3 either resolves it by a rule that gives the same answer every
-cycle, or stops and asks.
+Never guess a missing parameter. Step 2 either resolves it by a rule that gives the same answer every
+turn, or stops and asks. The two exceptions are the ones with safe defaults: an unstated budget is
+**10**, and an unstated mode is the plain loop.
 
-## Step 0 — Which phase am I in?
+A run needs at least one way to end. A stop condition, a task list that can empty, or both — and the
+budget behind them either way. If the request gives none of those, the budget alone bounds the run,
+and you say so in your first report line.
+
+## Step 0 — Which turn am I in?
 
 Look in the messages *preceding* this one — never in Your request — for the provenance line the
 `pi-renew` extension inserts before this body:
 
 ```
-[pi-renew restart #2 at 2026-08-24T18:04:11.921Z] reason: loop-analysis-complete
+[pi-renew restart #2 at 2026-08-24T18:04:11.921Z] reason: renew-loop-turn
 ```
 
 Match on whether the reason **contains** a value below, not on equality — it sits inside a longer
-line. Note the ordinal (`#2`): Termination compares it to the restart budget.
+line. The ordinal (`#2`) is how many turns this run has spent: Step 4 checks it against the budget.
 
 | Reason contains | Enter |
 |---|---|
-| no such line, or nothing below matches | Step 1, then the analyse phase |
-| `loop-analysis-complete` | the execute phase, directly |
-| `loop-unit-complete` | the analyse phase, for the next unit |
-| `context usage too high` | whichever phase the handover's `Phase:` line names |
+| no such line, or nothing below matches | Step 1, then Step 2 — a fresh run |
+| `renew-loop-turn` | Step 2, then the turn — a continuing run |
+| `renew-loop-analysis` | brief-and-review mode's **execute half**, directly |
+| `context usage too high` | Step 2, then whatever the handover's `Next:` line names |
 
-Treat anything unrecognised as absent and re-analyse. That direction is deliberate: re-analysing is
-recoverable, executing a unit nobody analysed is not.
+Treat anything unrecognised as absent and start a fresh turn from Step 2. That direction is
+deliberate: re-reading the handover and repeating a turn's planning is recoverable, executing a unit
+nobody analysed is not. (A run started before this protocol was renamed says `loop-unit-complete` and
+`loop-analysis-complete`; read those as `renew-loop-turn` and `renew-loop-analysis`.)
 
 ## Step 1 — Register before doing anything else
 
-Fresh invocations only. A continuing restart skips this step — the turn-1 registration still stands,
-and re-registering only resets the restart counter Termination relies on.
+Fresh runs only. A continuing restart skips this step — the first turn's registration still stands,
+and re-registering only resets the restart counter the budget is read from.
 
-Before reading the task list, the handover, or anything else:
+Before reading the handover, the task list, or anything else:
 
 - Call `set_delegate_context` with `context` set to the literal string `/renew-loop ` followed by the
   request in Your request above, character for character — no paraphrase, no re-ordering, no
   tidying. This is what makes turn 1 crash-safe: a session lost before the first restart resumes by
-  replaying that string. Normalizing it makes the loop drift once per restart.
-- If `set_delegate_context` is unavailable, `pi-renew` is not loaded. Note that in the handover,
-  run both phases in this one session regardless of what the request asked for (see No-restart
-  mode), and say so plainly in your final message.
+  replaying that string. Normalizing it makes the loop drift once per turn.
+- If `set_delegate_context` is unavailable, `pi-renew` is not loaded. Note that in the handover, run
+  in one session (see No-restart mode) regardless of what the request asked for, and say so plainly
+  in your final message.
 
 Registering first keeps even an under-specified request resumable while you resolve the rest of it.
 
-## Step 2 — Take stock of what is installed
+## Step 2 — Resolve the work, the handover and the bounds
 
-**This protocol assumes nothing beyond a shell, a repo and yourself.** Everything below is an
-optional lane: where a tool is installed the loop uses it, and where it is not the loop does the same
-job with what it has. Probe once per phase — it costs a look at your own tool list — and never
-install, configure or ask for anything to fill a gap. Degrade, and say which lane you took.
+Every turn resolves these the same way. A restart replays the registered request verbatim, so a rule
+that could answer differently on turn 4 than on turn 3 hands the fresh session someone else's state.
 
-| Capability | Present when | Take this lane | Otherwise |
-|---|---|---|---|
-| **restart** (`pi-renew`) | `set_delegate_context` is in your tools | restart between the phases | No-restart mode |
-| **child runner** (`pi-subagents`) | a `subagent` tool is in your tools | `subagent` with `agent: "worker"` and the brief as the task; `agent: "reviewer"` for a second pass | next row |
-| **child runner** (this repo) | `/skill:pi-subagent` is listed | launch the one-shot child | next row |
-| **no child runner** | neither of the above | — | implement the unit yourself, in the execute phase, under its restricted-reading rule |
-| **briefing skill** | `/skill:subagent-brief` is listed | invoke it to write the brief | write the brief yourself — Without the skills |
-| **review skill** | `/skill:subagent-review` is listed | apply its criteria to the reviewer notes | write the notes yourself — Without the skills |
-| **OpenSpec** | `openspec --version` answers — or `npx openspec --version` does, for a project-local install — or the repo has an `openspec/` directory | resolve, validate and close changes through it — see OpenSpec | treat the task list as a plain markdown checklist |
+- **The work.** A path in the request → use it. A directory holding a plan or an openspec change →
+  resolve the list inside it by convention: `tasks.md`, then `TASKS.md`, `plan.md`, `checklist.md`.
+  Two of those present, or none, → stop and ask which. A goal with no document at all is fine — the
+  handover carries the plan instead. **Never invent a task list**: point at one, or work from the
+  goal and record the steps in the handover.
+- **The handover** — below. It is the only thing that survives the restart.
+- **The bounds.** The stop condition in the request, and the turn budget (default 10). Write both
+  into the handover on the first turn and read them back from it afterwards, so a resumed run keeps
+  the bound it started with.
+- **Make a task list tickable**, if there is one — below.
+- **The restart primitive.** `set_delegate_context` and `delegate_to_agent` present → restart between
+  turns. Absent → No-restart mode. That is the only capability the default loop cares about; the
+  optional lanes are probed only in the modes that use them.
 
-Record what you found in the handover as one `Environment:` line (e.g.
-`Environment: pi-renew, subagent tool, no openspec`). It costs a line and it is the first thing worth
-knowing when a later cycle behaves differently than an earlier one.
+### Where the handover lives
 
-A lane is chosen per phase, not per run. A child runner that appears — or disappears — between two
-cycles changes only which lane the next phase takes; it never changes the protocol, the documents or
-the guards.
+**Every path this loop creates carries the work's name.** The slug is:
 
-### Without the skills
+1. the task list's own directory where that names the work —
+   `openspec/changes/add-auth/tasks.md` → `add-auth`;
+2. otherwise the task list's filename stem — `docs/add-auth-plan.md` → `add-auth-plan`. Directory
+   names that name no work (`tasks`, `task`, `docs`, `doc`, `plans`, `specs`, `.pi`, the repo root)
+   fall through to this rule;
+3. with no document at all, a short kebab-case slug from the goal itself (`get the e2e suite green`
+   → `e2e-suite-green`), written into the handover on turn 1 and re-read from it afterwards rather
+   than re-derived;
+4. and if the canonical path below already holds a handover for **different** work, extend the slug
+   leftwards one path segment at a time (`add-auth` → `changes-add-auth`) until it is free.
 
-When `subagent-brief` or `subagent-review` is not installed, the brief and the reviewer notes are
-still written — they are the child's input and the review's yardstick, not skill bookkeeping. Write
-them yourself, in the phase that would have invoked the skill:
+The canonical handover is `.pi/renew-loop/<slug>/handover-<slug>.md`. **Never create a plain
+`handover.md`, and never put one in a directory that does not name the work.** A generic name
+collides with every other run in the same repo, and the collision is silent: the next session adopts
+a stranger's state and reports progress that belongs to someone else's work.
 
-- **The brief** — the unit and its tier; exactly what to change and what not to; the files it may
-  touch; the source documents to read first (never restated, only pointed at); the decisions already
-  fixed, so the executor invents none; the checks that must pass; and what the report back must say.
-- **The reviewer notes** — what "done" means for this unit, in checkable statements; the checks to
-  re-run yourself rather than believe; the specific ways this unit could be wrong while its tests
-  stay green; and the checks you are deliberately *not* asking for, with the reason.
+Named in the request — including `/renew-loop continue from <path>` — → use that path and skip the
+search. Otherwise look in all of these, and do not stop at the first hit, because knowing whether
+there are two is the point:
 
-Tiering (T0 mechanical, T1 local, T2 behavioural, T3 stateful/protocol) still applies: size the unit,
-write the tier at the top of the brief, and let it decide how much verification the unit earns.
+1. `.pi/renew-loop/<slug>/handover-<slug>.md` — the canonical path
+2. `<task-list-dir>/handover-<slug>.md`
+3. legacy paths from before this rule, which are **adopted and then moved**, never written to:
+   `.pi/loop/<slug>/handover.md`, `.pi/loop/handover.md`, `<task-list-dir>/handover.md`
 
-### OpenSpec
+A candidate **validates only if it is about this work**: its `Work:` line names the same task list or
+goal, or — for one written before that line existed — its own text plainly refers to it. A handover
+naming *different* work belongs to another run: skip it, never merge the two, and never adopt one
+whose subject you cannot confirm either way.
 
-Where OpenSpec is installed and the work lives under `openspec/changes/<change>/`, use it — it is
-better than reading the tree by hand. Use whichever invocation answered the probe: `openspec …` for a
-global install, `npx openspec …` for a project-local one.
+- **Exactly one validates** → adopt it, and add the `Work:` line if it has none. If it sits at a
+  legacy path, move it — with anything beside it this run wrote — to the canonical path in this same
+  turn (`git mv` where they are tracked), and say so in your first report line.
+- **Several validate** → **stop and ask which.** Two live handovers for one piece of work is exactly
+  the ambiguity this protocol never guesses at. Make the answer cheap: list them with their
+  last-modified time and the turn each records, and recommend one.
+- **None validates** → create the canonical path, with its `Work:` line first.
 
-- `openspec show <change>` / `openspec status --change <change>` to resolve what the change contains
-  and how far along it is;
-- `openspec validate <change> --strict` as part of the gate on any unit that touches the spec delta;
-- `openspec archive <change>` **only when the request asked for it** and only after the exit test
-  passes — as its own commit, after the last unit's.
+**Adopting one that stopped mid-turn.** A handover whose last turn is unfinished belongs to a session
+that died. Do not start a turn *over* an interrupted run's uncommitted diff: discard that partial work
+first (a killed run is discarded and re-run from clean, never resumed), or stop and ask if you cannot
+tell which changes were its.
 
-Where it is not installed, none of that is required: the task list is a markdown checklist, the spec
-documents beside it are ordinary files, and the loop runs exactly as it does everywhere else. Never
-make an OpenSpec-shaped change a prerequisite; never invoke `openspec` against a repo that has no
-`openspec/` directory.
+Either way, **name the path in your first report line, and say whether you adopted, created or moved
+it.** A discovered path the user did not expect costs one sentence to mention and a debugging session
+to find later.
 
-## Step 3 — Resolve the work, then the state
+### What the handover holds
 
-Resolve **where the work is**, and only then **where the state lives**:
+Rewrite it at the end of every turn. It is written for a reader with no memory of this session:
 
-- **The task list.** Named in the request → use it. A plan, an openspec change or a directory named
-  instead → resolve the list inside it by convention: `tasks.md`, then `TASKS.md`, `plan.md`,
-  `checklist.md`. Two of those present, or none, → stop and ask which. Nothing about work at all →
-  stop and ask. **Never invent a task list**; it is the one parameter with no safe default.
-- **Make it tickable** — below. Both Termination checks read the task list, so a list nothing can
-  tick is a loop that cannot end.
-- **The handover.** Named in the request — including `/renew-loop continue from <path>` — → use it,
-  and skip the search. Otherwise find it, below.
+```
+Work:        <the task list path, or the goal in one line>
+Slug:        <the slug, fixed on turn 1>
+Mode:        <plain | brief-and-review>  ·  Turn: <n> of <budget>
+Runner:      <brief-and-review only: subagent tool | pi-subagent skill | this session>
+Stop when:   <the stop condition, or "the task list is empty", or "the budget">
+Next:        <the one concrete thing the next turn does first>
 
-### Making the task list tickable
+## Progress
+<what this turn changed, as facts — files, commits, checks run and their result>
 
-Progress lives in the task list, and the only progress the next cycle can see is a marker in the
-file. Check the list once, on the first analyse of a run:
+## Open
+<what is left; for a task list, which units are still open right now — the no-progress
+ guard has nothing to compare against next turn otherwise>
+
+## Decisions pending
+<anything you deferred rather than guessed at, with the options>
+
+## Notes
+<gotchas the next turn would otherwise rediscover>
+```
+
+### Making a task list tickable
+
+Progress lives in the task list, and the only progress the next turn can see is a marker in the file.
+Check it once, on the first turn of a run:
 
 - **It already has markers** — `- [ ]` / `- [x]` checkboxes, or whatever "done" is in this file's own
   format — → use them as they are. Never convert one convention to another; a list that is already
@@ -158,269 +193,220 @@ file. Check the list once, on the first analyse of a run:
   a `- [ ]` checkbox to each unit line and change nothing else: no re-wording, no re-ordering, no
   re-grouping. Commit that on its own before the first unit (`chore: add checkboxes to <file>`), and
   name it in your report.
-- **It is prose, not a list** — a plan or spec whose steps are headings or paragraphs → derive a
-  checklist beside the handover at `.pi/renew-loop/<slug>/tasks-<slug>.md`, one `- [ ]` per step **the
-  document itself names**, in the document's own order, each line pointing back at the section it
-  came from. Deriving is transcription, not authorship: a step the document does not name does not go
-  in. Record the derived list in the handover as the task list, treat it as the task list from then
-  on, and say so in your report. If the document names no steps at all, stop and ask.
+- **It is prose, not a list** — a plan or spec whose steps are headings or paragraphs → transcribe
+  the steps **the document itself names** into `.pi/renew-loop/<slug>/tasks-<slug>.md`, one `- [ ]`
+  each, in the document's own order, each line pointing back at the section it came from. Transcribing
+  is not authorship: a step the document does not name does not go in. Record it in the handover as
+  the task list and work from it. If the document names no steps at all, work from the goal and keep
+  the plan in the handover's `## Open` instead.
 
-### Finding the handover
+## Step 3 — The turn
 
-Search the same way every cycle. A restart replays the registered request verbatim, so a discovery
-that is not deterministic hands the fresh session a different handover than the one the last phase
-wrote — which loses the tier, the pending decisions and the no-progress baseline in one step.
+1. **Read the handover** — and only what it points at. The restart destroyed the previous turn's
+   context on purpose; re-reading the tree to rebuild it spends what the restart bought. If the
+   handover is not enough to act on, that is a defect in the *last* turn's handover: fix the handover
+   as this turn's work, say so, and continue.
+2. **Do one turn's work.** One unit from the task list — the one the request orders explicitly,
+   otherwise the first still open in the list's own order — or the one step the handover's `Next:`
+   line names. Never more than one per turn: the point of the loop is that each turn is small enough
+   to hold in a clean context.
+3. **Check it.** Run whatever the work has — the test, the build, the linter, the request's own stop
+   condition. A turn that reports success without running the check is the failure this protocol
+   exists to prevent, because nothing later re-examines it.
+4. **Close the unit** in the task list, where there is one — tick its checkbox. Nothing else does
+   this, and the exit test and the no-progress guard both read it. With no task list, the handover's
+   `## Open` section is what they read instead, so keep it honest.
+5. **Commit**, if the request asks for commits, with the task-list edit and the handover update in
+   the same commit; push only if the request asks for that too.
+6. **Rewrite the handover** to the shape above, with this turn's number and a `Next:` line that the
+   next session could act on cold.
 
-**Every path this loop creates carries the change in its name.** The slug is:
+**A blocked turn is not automatically a stop.** First prove the blocker is not your own work:
+reproduce it on something referencing none of this turn's changes, or on a clean tree, and name the
+first failure in the chain — if that is your own code, it is a correctness finding and the loop stops.
+Then ask whether the **shortest** correct repair changes a design decision, a public surface, a
+dependency, a protocol or a test's strength. **None of them → repair it and carry on**, as its own
+`fix:` commit before the turn's, re-running the check after. **Any of them → that is a decision: stop
+and report it.** Record either outcome in the handover. Never take the third option of calling the
+turn done against a reduced bar.
 
-1. the task list's own directory name where that names the work —
-   `openspec/changes/add-auth/tasks.md` → `add-auth`;
-2. otherwise the task list's filename stem — `docs/add-auth-plan.md` → `add-auth-plan`. Directory
-   names that name no work (`tasks`, `task`, `docs`, `doc`, `plans`, `specs`, `.pi`, the repo root)
-   fall through to this rule;
-3. and if the canonical path below already holds a handover for a **different** task list, extend the
-   slug leftwards one path segment at a time (`add-auth` → `changes-add-auth`) until it is free.
+## Step 4 — Stop, or restart into the next turn
 
-The canonical handover is then `.pi/renew-loop/<slug>/handover-<slug>.md`, with the brief and
-reviewer notes beside it. **Never create a plain `handover.md`, and never put one in a directory that
-does not name the change.** A generic name collides with every other run in the same repo, and the
-collision is silent: the next session adopts a stranger's state and reports progress that belongs to
-someone else's change.
+Check these in order, before doing anything else with the turn's result:
 
-Look in all of these — do not stop at the first hit, because knowing whether there are two is the
-point:
+1. **Stop condition met** — the request's condition is satisfied, or the task list has no open unit
+   left → stop and report completion. This is the ordinary way a run ends.
+2. **Hard stop** — continuing would mean guessing the user's intent; a commit or push failed; the
+   same step failed twice; a check is red for something you cannot repair without a decision → stop
+   and report what you have and what blocks you.
+3. **No progress** — nothing changed since what the last turn recorded in `## Progress`, and the task
+   list is unchanged → stop and say so. This catches the failure that actually happens: a unit
+   believed finished but never ticked, and a turn that keeps re-doing the same step. On a run's first
+   turn there is nothing to compare against, so it passes.
 
-1. `.pi/renew-loop/<slug>/handover-<slug>.md` — the canonical path
-2. `<task-list-dir>/handover-<slug>.md`
-3. legacy paths from before this rule, which are **adopted and then moved**, never written to:
-   `.pi/loop/<slug>/handover.md`, `.pi/loop/handover.md`, `<task-list-dir>/handover.md`
+   **A handover you adopted is a baseline, not a previous turn — but only once.** If the last turn
+   recorded a hard stop, a blocker or a pending decision, that is an explanation rather than a stall:
+   write `Resumed: <date> — after <that reason>` into the handover and take one turn. No recorded
+   reason, or a `Resumed:` line already there with nothing closed since, means two consecutive turns
+   produced nothing: stop and report it.
+4. **Budget reached** — the provenance ordinal has reached the turn budget → stop and report that the
+   budget is spent, naming the next step and how to continue (`/renew-loop continue from <handover>`,
+   or the same request with a larger `max N turns`). Being out of budget is not failure; say so
+   plainly rather than as an error.
+5. **`ask` between turns** was requested → report the turn, name what the next one would do, and wait.
+   When the user says to carry on, restart into the next turn as in 6 rather than continuing here: the
+   fresh context is the point, and the restart ordinal is how the budget is counted.
+6. **Otherwise, restart.** Call `delegate_to_agent` with:
+   - `reason` — `renew-loop-turn`.
+   - `strategy` — always `new-session`, passed explicitly. Never omit it and never pass `compact`:
+     `compact` does not replay a registered delegate context, so the fresh context would get a bare
+     continuation notice and the loop would die after this turn.
+   - `summary` — the tool's structured summary (Goal, Constraints & Preferences, Progress, Key
+     Decisions, Next Steps, Critical Context) for the turn that just finished.
+   - `nextSteps` — read the handover at `<path>` and do what its `Next:` line says.
 
-A candidate **validates only if it is about this task list**: its `Task list:` line names it, or —
-for one written before that line existed — its own text plainly refers to this list or to units from
-it. A handover naming a *different* task list belongs to another run: skip it, never merge the two,
-and never adopt one whose subject you cannot confirm either way.
+**High-context variant.** If the extension's high-context reminder fires mid-turn, that is not your
+decision to restart — follow the reminder instead: stop work, write a complete handover including its
+`Next:` line, then call `delegate_context_high` with `handoverPath` pointing at that file. Do not call
+`delegate_to_agent` for this path; `delegate_context_high` calls it internally with the right reason
+and nextSteps. A turn cut short this way still counts against the budget.
 
-- **Exactly one validates** → adopt it, and add the `Task list:` line if it has none. If it is a
-  legacy path, move it — with its brief and reviewer notes — to the canonical path in this same
-  cycle (`git mv` where they are tracked), and say so in your first report line.
-- **Several validate** → **stop and ask which.** Two live handovers for one task list is the
-  ambiguity Termination says never to guess at, and what would be lost by choosing wrong — progress,
-  pending decisions, repairs — is the whole reason to adopt one at all. Make the answer cheap: list
-  them with their last-modified time and the unit each names, and recommend one.
-- **None validates** → create the canonical path, with its `Task list:` line first.
+## No-restart mode
 
-**Adopting one that stopped mid-flight.** A handover saying `Phase: execute` belongs to a session
-that died before its unit closed. Adoption never re-enters the execute phase — only a provenance line
-does, and re-analysing is the recoverable direction — but do not re-analyse *over* an interrupted
-executor's uncommitted diff. Discard that partial work first (a killed run is discarded and re-run
-from clean, never resumed), or stop and ask if you cannot tell which changes were its. Then analyse
-normally.
+Selected by the request, or forced by Step 1 when `set_delegate_context` is unavailable. Run the turns
+in sequence in one session, with no `delegate_to_agent` call of your own, still stopping on the same
+conditions and the same budget — counted here from the handover's `Turn:` line, since there is no
+restart ordinal to read. Write the handover every turn anyway — it is the record of what
+happened, not restart bookkeeping — and be aware that the context you were supposed to shed is still
+with you: keep each turn's reading as tight as if it were about to be thrown away.
 
-Either way, **name the path in your first report line, and say whether you adopted or created it.**
-A discovered path the user did not expect costs one sentence to mention and a debugging session to
-find later.
+If the high-context reminder fires anyway, follow it: write the handover and call
+`delegate_context_high`. It restarts the session even though nothing else here does — it is the
+extension's safety net, and not optional because the request asked for no restarts.
 
-## The analyse phase
+## Opt-in: brief-and-review mode
 
-1. Run the exit test and the no-progress guard (Termination). Either one stopping the loop takes
-   priority — do not go looking for work until both pass.
-2. Select exactly **one** open unit: the one the request orders explicitly, otherwise the first
-   still open in the task list's own order.
-3. Write that unit's delegation brief — through `/skill:subagent-brief` where it is installed,
-   otherwise yourself, to Step 2's outline. **Size the unit first** — T0 mechanical, T1 local, T2
-   behavioural, T3 stateful/protocol — and put the tier, the checks it selects and the checks it
-   rules out at the top of the brief. The tier travels to the execute phase in the brief; nothing
-   else carries it across the restart. Read the handover's `## Repairs` entries against this unit
-   before you size it: a 🔧 repair from an earlier cycle may already have done part of what the task
-   document still describes as pending, which is scope the staleness sweep must catch and the brief
-   must rule out explicitly.
-4. Write reviewer notes for the unit — applying `/skill:subagent-review`'s criteria where it is
-   installed, otherwise Step 2's outline — **at the depth the tier selects**. Name the checks you are
-   deliberately not asking for, with the reason: a check skipped silently and a check forgotten look
-   identical next cycle.
-5. Write or update the handover with: a `Task list:` line naming the list this handover belongs to
-   (Step 3's search reads it back — without it, the next session cannot tell this handover from
-   another run's, and will create a second one beside it), the `Environment:` line from Step 2, the
-   unit you selected, its tier, the brief and reviewer-notes paths, which units the task list has
-   open right now (the guard has nothing to compare against next cycle otherwise), any unresolved
-   `## Decisions pending` entries and any `## Repairs` entries carried forward, and exactly one
-   `Phase:` line — `Phase: execute` once all three documents are complete, `Phase: analyse` if you
-   are restarting before they are.
+**Turn it on by asking for it** — "apply with subagent review", "brief and review each unit",
+"delegate each unit to a sub-agent", "review each unit before committing". Reach for it when the work
+has acceptance criteria you are asked to verify, when each unit should land as its own reviewable
+commit, when the units are large enough that analysing and executing one in the same context degrades
+both, or when the run is unattended and nothing else will check the result. The plain loop is the
+default because most work does not need this; this mode costs a restart and two sessions per unit.
 
-Unless the request names other locations, write the brief and notes beside the handover as
-`brief-<unit-slug>.md` and `review-<unit-slug>.md`, slug from the unit's number or title (`5.4` →
-`5-4`). The handover's own directory already carries the change, so these two do not repeat it.
+**What changes: one unit takes two turns.** Both count against the same budget, so a budget of 10 is
+five units here. Everything else — registration, the handover, the bounds, the stop conditions,
+No-restart mode — is unchanged.
 
-Restart on whichever comes first: all three documents written (the normal case), or the
-high-context reminder firing.
+**First, find the runner.** This mode delegates each unit, so before the first brief, look for one —
+in this order, and take the first that is actually there:
 
-## The restart
+1. a **`subagent` tool** (from `pi-subagents`) → run units with `agent: "worker"`, and a `reviewer`
+   child is available as a second opinion on the diff;
+2. the **`pi-subagent` skill** (`/skill:pi-subagent`) → run each unit as a one-shot child process;
+3. **neither** → run the unit **in this same session**, from the brief, under the same restricted
+   reading. The mode is not cancelled by the absence of a runner: the brief, the reviewer notes and
+   the two-turn split are what it is for, and they all still happen. What you lose is the executor's
+   context isolation, so keep the reading tight.
 
-Both phases hand off normally by calling `delegate_to_agent` with:
+Record which one you found in the handover (`Runner: subagent tool` / `pi-subagent skill` / `this
+session`) and name it in the turn's report, so a run that fell back is visible rather than
+mysterious.
 
-- `reason` — `loop-analysis-complete` from analyse; `loop-unit-complete` from execute under `auto`.
-- `strategy` — always `new-session`, passed explicitly. Never omit it and never pass `compact`:
-  `compact` does not replay a registered delegate context, so the fresh context would get a bare
-  continuation notice and the loop would die after this phase.
-- `summary` — the tool's structured summary (Goal, Constraints & Preferences, Progress, Key
-  Decisions, Next Steps, Critical Context) covering the phase that just finished.
-- `nextSteps` — one concrete first action for the fresh session (e.g. read the handover and brief
-  for the pending unit, then run it).
+### The analyse half
 
-**High-context variant.** If the extension's high-context reminder fires mid-phase, that is not your
-decision to restart — follow the reminder instead: stop work, write a complete handover including
-its `Phase:` line, then call `delegate_context_high` with `handoverPath` pointing at that file. Do
-not call `delegate_to_agent` for this path; `delegate_context_high` calls it internally with the
-right reason and nextSteps. Step 0 routes that reason by the `Phase:` line, so writing it correctly
-is what makes this path resumable.
+1. Run Step 4's checks 1–4 first. A stop takes priority over starting a unit.
+2. Select exactly **one** open unit.
+3. **Size it** — T0 mechanical, T1 local, T2 behavioural, T3 stateful/protocol — and put the tier and
+   the checks it selects and rules out at the top of the brief. The tier reaches the execute half in
+   the brief; nothing else carries it across the restart.
+4. **Write the brief** — `/skill:subagent-brief` where that skill is installed, otherwise yourself,
+   to the outline below.
+5. **Write the reviewer notes** — `/skill:subagent-review`'s criteria where installed, otherwise the
+   outline below — at the depth the tier selects. Name the checks you are deliberately not asking
+   for, with the reason: a check skipped silently and a check forgotten look identical next turn.
+6. Update the handover: `Mode: brief-and-review`, the unit, its tier, the brief and notes paths, the
+   units still open, and `Next: execute <unit>`.
+7. Restart with `reason: renew-loop-analysis` — same call shape as Step 4.6 otherwise.
 
-## The execute phase
+Write the brief and notes beside the handover as `brief-<unit-slug>.md` and `review-<unit-slug>.md`,
+slug from the unit's number or title (`5.4` → `5-4`). The handover's directory already carries the
+work's name, so these two do not repeat it.
+
+**The outlines**, for when the skills are not installed — they are the executor's input and the
+review's yardstick, not skill bookkeeping, so they get written either way:
+
+- **The brief** — the unit and its tier; exactly what to change and what not to; the files it may
+  touch; the source documents to read first (pointed at, never restated); the decisions already fixed,
+  so the executor invents none; the checks that must pass; and what its report back must say.
+- **The reviewer notes** — what "done" means for this unit, in checkable statements; the checks to
+  re-run yourself rather than believe; the specific ways this unit could be wrong while its tests stay
+  green; and the checks you are deliberately not asking for, with the reason.
+
+### The execute half
 
 1. Read the handover.
 2. Read the brief.
-3. **Run the unit**, immediately — no further reading, no re-deriving context from the task list or
-   the source tree. The brief already carries everything the executor needs. Take the highest lane
-   Step 2 found:
-   - **`subagent` tool** — call it with `agent: "worker"` and the brief (its path, and its content
-     where the tool takes text) as the task.
-   - **`/skill:pi-subagent`** — launch the one-shot child asynchronously.
-   - **neither** — implement the unit yourself, from the brief, in this turn. The restricted reading
-     above is *not* relaxed here: it is what the restart bought, and re-reading the tree to
-     "understand the unit" spends it. If the brief is not enough to implement from, that is a defect
-     in the brief — record it in the handover and re-analyse, rather than reading around it.
+3. **Run the unit**, immediately, in the runner the handover's `Runner:` line names — no further
+   reading, no re-deriving context from the task list or the source tree:
+   - `subagent` tool → call it with `agent: "worker"` and the brief as the task;
+   - `pi-subagent` skill → launch the one-shot child asynchronously;
+   - this session → implement it yourself, from the brief. The restricted reading is *not* relaxed
+     here: it is what the restart bought. If the brief is not enough to implement from, that is a
+     defect in the brief — record it in the handover and re-analyse rather than reading around it.
+
+   Re-probe only if that runner is gone; a runner that appears or disappears between turns changes
+   this line and nothing else.
 4. Wait for the result within this same turn.
-5. Only now read the reviewer notes — before the unit ran there was no diff for them to check.
+5. **Only now** read the reviewer notes — before the unit ran there was no diff for them to check.
 6. Review the diff against them — **the diff first, any report second**. A report maps where its
-   author thinks the work is; reading it first anchors you there, and the defects are where it did
-   not look. Where a `subagent` tool is installed, a `reviewer` child is a useful second opinion —
-   but it is an addition to your own review of the diff, never a replacement for it.
-7. Minor findings — fix them yourself in this turn. Major findings — write a new brief for what
-   remains and run the unit again (back to step 3).
-8. **If the unit is blocked by something outside it** — the executor reported it could not finish, or
-   your own gate run is red for something the unit did not introduce — triage it through the **🔧
-   repair lane** before treating it as a hard stop (`IMPROVEMENT-BUDGET.md` in `subagent-brief` where
-   that skill is installed; the rule is stated in full here either way). First *prove* the
-   defect is pre-existing: reproduce it on something referencing none of the unit's code, or on a
-   clean tree, and name the first failure in the chain — if that is the unit's own code you have a
-   correctness finding, and the loop stops. Then ask whether the **shortest** correct repair changes
-   a spec-fixed decision, the public surface, a dependency, the protocol, the spec delta, or a test's
-   strength. **None of them → repair it yourself**, outside the allowed-files table and in other
-   units' files if that is where it lives, as its own `fix:` commit *before* the unit's, re-running
-   the gate after. **Any of them → that is a real decision: stop and report it, in every mode.** Two
-   candidate repairs are a decision only when they *disagree about the design*; two spellings of one
-   mechanical fix are not — take the narrower, and say which in the handover. Never take the third
-   option of ticking the unit against a reduced bar: deferring a failing acceptance criterion is a
-   decision even where the repair would not have been. Either way, record it in the handover as an
-   `RP-` entry, naming which later units the repair changes.
-9. **Triage the improvements** — anything *better* rather than *wrong*, from the executor's report or
-   your own reading, through the lanes in `subagent-brief`'s `IMPROVEMENT-BUDGET.md` (where that
-   skill is not installed, the same three lanes apply by their descriptions here):
-   **🟢** behaviour-preserving, inside the allowed-files table, ≤ ~15 net lines, no exported
-   signature or dependency change, existing tests unchanged, contradicts nothing the spec fixes →
-   apply it and commit it **separately** from the unit's own commit, re-running the gate after.
-   **🟡** bigger, a new abstraction, a shared helper, a test's intent → record it in the handover
-   with a sketch; do not start it.
-   **🔴** would change a spec-fixed decision, the public surface, a dependency, or the protocol →
-   never applied in-phase. Under `stop`/`ask`, put it to the user with numbered options and a
-   recommendation. **Under `auto`, do not stop**: append it to the handover's `## Decisions pending`
-   section, name it in your report line, and carry on. An opportunity is never on the unit's
-   critical path, so deferring one cannot make the unit wrong.
-10. Close the unit in the task list — tick the checkbox Step 3 made sure exists. Nothing else does
-    this, and both Termination checks depend on it.
-11. Update the handover with what you found, any gotchas, next steps, any new `## Decisions pending`
-    entry from step 9, and any `## Repairs` entry from step 8. Keep `Phase: execute` until the unit
-    is committed.
-12. Commit the unit's change, with the task-list edit and handover update in that same commit; push
-    only if the request asks for it. A 🔧 repair from step 8 is its own commit **before** this one and
-    a 🟢 improvement from step 9 its own commit **after** it — never folded in, so the unit's diff
-    stays reviewable as the unit.
+   author thinks the work is; reading it first anchors you there, and the defects are where it did not
+   look. Where a `subagent` tool exists, a `reviewer` child is a useful second opinion — an addition
+   to your own review of the diff, never a replacement for it.
+7. Minor findings — fix them here. Major findings — write a new brief for what remains and run the
+   unit again (back to 3). The **same unit escalating twice is a hard stop**.
+8. **Blocked?** Step 3's repair rule decides it, in full: prove the defect is pre-existing, take the
+   shortest correct repair if it changes no design, stop and ask if it would. The repair may live
+   outside the unit's allowed files — files belong to units, the design belongs to the spec — and
+   lands as its own `fix:` commit *before* the unit's. Record it in the handover.
+   `IMPROVEMENT-BUDGET.md` in `subagent-brief` carries the same rule at length where that skill is
+   installed.
+9. **Triage the improvements** — anything *better* rather than *wrong*:
+   **🟢** behaviour-preserving, inside the brief's allowed files, ≤ ~15 net lines, no exported
+   signature or dependency change, existing tests unchanged → apply it, and commit it **separately**
+   from the unit, re-running the check after.
+   **🟡** bigger, a new abstraction, a shared helper, a test's intent → record it in the handover with
+   a sketch; do not start it.
+   **🔴** would change a fixed decision, the public surface, a dependency or the protocol → never
+   applied in the turn. Put it in `## Decisions pending`, name it in your report line, and carry on — an
+   opportunity is never on the unit's critical path, so deferring one cannot make the unit wrong. A
+   correctness finding, an ambiguity about intent, or a second escalation still stops the loop.
+10. Tick the unit, update the handover, and commit as in Step 3 — a 🔧 repair its own commit before
+    the unit's, a 🟢 improvement its own after it, so the unit's diff stays reviewable as the unit.
+11. Then Step 4: stop, ask, or restart into the next unit's analyse half.
 
 Steps 1–5 are a rule about *order*, not just about which files get read: reviewer notes read earlier
 bias how the unit's task is framed instead of judging the result, and anything read beyond the
 handover and brief before running it re-derives what the brief exists to carry.
 
-## Continuation modes
+## Other optional lanes
 
-| Mode | Once the execute phase completes |
-|---|---|
-| `stop` (default) | The loop ends. No restart, no further unit. Report per The final report. |
-| `ask` | Report what you did, name the next open unit, wait for the user's decision. |
-| `auto` | Restart into analyse for the next unit (`loop-unit-complete`), subject to Termination. |
+Probe for these only where they apply; never install, configure or ask for anything to fill a gap.
+Degrade, and say which lane you took — the handover's `Notes` is the place.
 
-## Termination and bounds
+| Lane | Present when | Then | Otherwise |
+|---|---|---|---|
+| **child runner** | a `subagent` tool, or `/skill:pi-subagent` | brief-and-review looks for it first and records what it found; the plain loop uses it only if the request asks to delegate the work | do the turn's work in this session |
+| **brief / review skills** | `/skill:subagent-brief`, `/skill:subagent-review` | brief-and-review uses them | the outlines above |
+| **OpenSpec** | `openspec --version` answers — or `npx openspec --version`, for a project-local install — and the repo has an `openspec/` directory | `openspec show <change>` / `status --change <change>` to resolve the change; `validate <change> --strict` in the check when a unit touches the spec delta; `archive <change>` **only if the request asked**, after the stop condition is met, as its own commit | the task list is a plain markdown checklist and the spec files are ordinary files |
 
-Both checks run at the top of **every** analyse phase, before a unit is selected, in every
-continuation mode — a manual `/renew-loop continue from <handover>` can loop on a stuck unit exactly
-as an unattended `auto` run can.
-
-- **Exit test** — no open unit left in the task list → stop and report completion. This is the
-  ordinary way the loop ends. The task list is the source of truth for what is done. Where the
-  request asked for it and OpenSpec is installed, this is also where the change is archived.
-- **No-progress guard** — the task list is unchanged from what the previous cycle recorded in the
-  handover → stop and report that no progress was made. This catches what the exit test cannot: a
-  unit believed finished but never ticked, or a review that keeps re-opening the same unit. The
-  handover is the source of truth for what happened. On a session's first analyse there is nothing
-  to compare against, so it passes.
-
-  **A handover Step 3 adopted is a baseline, not a previous cycle — but only once.** When you
-  adopted one and the task list still matches what it recorded, read *why* the last cycle ended
-  before stopping. A recorded hard stop, blocker or pending decision is an explanation: write
-  `Resumed: <date> — after <that reason>` into the handover and continue, since the user resuming a
-  loop they unblocked is the intended path. No recorded reason — or a `Resumed:` line already there
-  with nothing closed since — means two consecutive cycles produced nothing: stop and report it.
-  Without this the guard fires on every resume of a run that stopped *because* it closed no unit,
-  which is the case most worth resuming.
-
-**Hard stops.** Stop under any continuation mode, reporting what you have and what blocks you, when:
-
-- continuing would mean guessing the user's intent — which unit, how to resolve a conflict, whether
-  a finding is minor or major. Ask instead of choosing.
-- the same unit escalates in review a second time;
-- a child run fails;
-- a commit or push fails;
-- the provenance ordinal reaches the restart budget the request named (unbounded if it named none).
-
-A **🔴 improvement opportunity is not a hard stop under `auto`** — the execute phase's step 9
-defers it to the handover. That carve-out covers opportunistic improvements only: a correctness
-finding, an ambiguity about intent, or a second escalation of the same unit still stops the loop in
-every mode. If you are reaching for the carve-out to avoid stopping, what you are holding is not an
-improvement.
-
-**A blocked unit is not a hard stop until the 🔧 repair lane says so.** Step 8 is what decides that,
-and it decides on one question only: *does the shortest correct repair change the design?* A
-mechanical repair — the build, the wiring, a fixture, a registration another unit left broken — is
-not a decision for the user, however far outside the unit's allowed files it lives, and the loop
-repairs it and carries on. A repair that would change a spec-fixed decision, the public surface, a
-dependency, the protocol or a test's strength **is** the decision, and the loop stops for it in every
-mode. Files belong to units; the design belongs to the spec. Crossing a file boundary to unblock the
-tree is bookkeeping. Crossing the spec to unblock the tree is the thing you must always stop for.
-
-**A missing tool is never a hard stop.** Step 2's lanes cover every absence the protocol knows
-about: no child runner, no skills, no OpenSpec, no restart. Take the next lane down and say which.
-The one absence that *does* change the run is `set_delegate_context` — and that selects No-restart
-mode rather than stopping.
-
-## No-restart mode
-
-Selected by the request, or forced by Step 1 when `set_delegate_context` is unavailable. Run analyse
-then execute in sequence in one session, with no `delegate_to_agent` call of your own. Still produce
-all three documents — they are the executor's input and the review's yardstick, not restart
-bookkeeping.
-
-What does not apply here: the execute phase's restricted reading (nothing destroyed the analysis, so
-re-reading anything you already hold is fine); Step 0's phase table and the restart call shapes
-(there is no provenance to read and no reason to emit); and the `Phase:` line as a resume point
-(still write it — nothing reads it back).
-
-If the high-context reminder fires anyway, follow it as above: write the handover and call
-`delegate_context_high`. It restarts the session even though nothing else here does — it is the
-extension's safety net, and not optional because the request asked for no restarts.
+**A missing tool is never a hard stop.** The one absence that changes the run is
+`set_delegate_context`, and that selects No-restart mode rather than stopping.
 
 ## The final report
 
 Produce a full result report only when the request asked for one. Otherwise end with a short
-completion statement: which unit closed, and why the loop stopped — continuation mode, a hard stop,
-or the exit test.
+completion statement: what the run did, how many turns it spent, and why it stopped — the stop
+condition, a hard stop, the no-progress guard, or the budget.
 
 Either way, your final reply in this turn **is** the report. There is no other channel; the handover
 is for the next session, not for the user.

@@ -134,7 +134,7 @@ condition holds. Language-neutral: commands per ecosystem are in
 - [ ] `[all]` Findings split into **fixed** and **recorded, deliberately not fixed**, with the reason.
 - [ ] `[all]` Improvements triaged: 🟢 applied as a **separate commit** after the functional review is
       green; 🟡 recorded with a sketch; 🔴 escalated — to the user under `stop`/`ask`, or to the
-      handover's `## Decisions pending` under `auto`, without stopping the loop.
+      handover's `## Decisions pending` on an unattended run, without stopping it.
 - [ ] `[all]` Gate re-run **after** any fixes or improvements made during review.
 - [ ] `[all]` Notes quote your own numbers, with the command that produced each.
 - [ ] `[all]` Any crossed constraint noted, even where the result was kept.

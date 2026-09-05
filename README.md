@@ -10,21 +10,24 @@ your summary, your next steps, and — if you registered one — a **delegate co
 which can be an entire workflow.
 
 That last part is what makes long work possible. This repo ships one workflow built on it:
-**`/renew-loop`**, a prompt template that drives a task list to completion one unit at a time, restarting
-its own context between *analysing* a unit and *executing* it, so the executing agent never inherits the
-analysing agent's clutter.
+**`/renew-loop`**, a prompt template that repeats a turn of work — do it, hand over, restart with a
+clean context — until a stop condition is met or the turn budget runs out. Its state lives in a file
+instead of a context window, so a run can be longer than any one session.
 
 | Piece | What it is | What it does |
 |---|---|---|
 | [`pi-extensions/pi-renew`](pi-extensions/pi-renew) | an extension | the restart primitive: three tools and the `/pi-renew` command. Knows nothing about loops |
-| [`prompts/renew-loop.md`](prompts/renew-loop.md) | a prompt template | the `/renew-loop` protocol: analyse → restart → execute → review → commit |
-| [`skills/subagent-brief`](skills/subagent-brief) | a skill | writes the delegation brief a cold-start sub-agent can execute without rework |
-| [`skills/subagent-review`](skills/subagent-review) | a skill | reviews what came back — re-runs the gate, audits the diff, triages improvements |
-| [`skills/pi-subagent`](skills/pi-subagent) | a skill | runs `pi` as a one-shot child; `/renew-loop`'s execute phase falls back to it when no richer child runner is installed |
+| [`prompts/renew-loop.md`](prompts/renew-loop.md) | a prompt template | the `/renew-loop` protocol: work → hand over → restart, until a stop condition or the turn budget |
+| [`skills/subagent-brief`](skills/subagent-brief) | a skill | **brief-and-review only** — writes the delegation brief a cold-start executor can carry out without rework |
+| [`skills/subagent-review`](skills/subagent-review) | a skill | **brief-and-review only** — reviews what came back: re-runs the gate, audits the diff, triages improvements |
+| [`skills/pi-subagent`](skills/pi-subagent) | a skill | runs `pi` as a one-shot child — the runner brief-and-review falls back to when no `subagent` tool is installed |
 | [`skills/pi-driver-common`](skills/pi-driver-common) | a library | the shared driver discipline (model pinning, idle watchdog, exit codes, session folding). No `SKILL.md` — `pi` does not load it as a skill |
 
+The first two rows are the whole default. The three skills belong to **brief-and-review**, an opt-in
+mode you turn on by asking for it; the plain loop never loads them.
+
 The layering is the contract: `/renew-loop` calls the pieces below it, and none of them knows anything
-about loops, phases or reasons. That ignorance is what lets the same extension and the same child runner
+about loops, turns or reasons. That ignorance is what lets the same extension and the same child runner
 serve callers with nothing to do with this protocol. In the other direction the loop asks nothing of its
 environment: [what it uses when it is there](#works-best-with) is optional, every piece of it.
 
@@ -192,52 +195,78 @@ is persisted, and what happens when a restart fails — is in
 
 ## The `/renew-loop` protocol
 
-`/renew-loop` is the workflow that registration makes possible. Point it at a task list; it works **one
-unit at a time**:
+`/renew-loop` is the workflow that registration makes possible: **one turn per session**, repeated
+until something says stop.
 
 ```
-TURN 1  (fresh session)                          TURN 2  (fresh context)
-├─ register "/renew-loop <request>" verbatim     ├─ read ONLY handover + brief
-├─ adopt this task list's handover, or create    ├─ run the unit — child agent, or here
-├─ exit test · no-progress guard                 ├─ THEN read reviewer notes, review the diff
-├─ pick ONE unit, size it (T0–T3)                ├─ minor → fix here · major → re-brief
-├─ write brief · reviewer notes · handover       ├─ blocked? → 🔧 repair, or stop
-└─ RESTART ─────────────────────────────────────▶├─ tick the task list · commit
-   (or earlier, if context crosses the           └─ stop · ask · or restart into the next unit
-    high-context threshold)
+TURN n  (fresh context)
+├─ read the handover — and only what it points at
+├─ do ONE turn's work · run its check · tick the list · commit
+├─ rewrite the handover: what happened, what's next, turn n of N
+└─ stop, or RESTART into turn n+1
+     stop when: the stop condition is met · the list is empty · a decision is due
+                · nothing changed this turn · the turn budget is spent (default 10)
 ```
 
-Everything after `/renew-loop` is free text — there are no flags. You say what you want and the
-protocol maps it onto its parameters:
+That is the whole default. No sub-agents, no skills, no spec tool, no phases — just a bounded loop
+whose state lives in a file instead of in a context window. Everything after `/renew-loop` is free
+text; there are no flags:
 
 | What you want | How you say it |
 |---|---|
-| Where the work is listed | `implement openspec/changes/add-x/tasks.md`, or the directory holding it |
-| Where state lives | `handover <path>` — optional; otherwise it finds this change's own, or creates `.pi/renew-loop/<change>/handover-<change>.md` |
-| Keep going by itself | `continue automatically until all tasks are done` |
-| Check in between units | `ask me before each next unit` |
+| What to work on | `implement openspec/changes/add-x/tasks.md`, or the directory holding it, or just the goal |
+| When to stop | `until the e2e suite is green` — optional; an empty task list and the budget also end a run |
+| How long to run | `max 20 turns` — optional; **the default budget is 10** |
+| Where state lives | `handover <path>` — optional; otherwise it finds this work's own, or creates `.pi/renew-loop/<slug>/handover-<slug>.md` |
+| Check in between turns | `ask me between turns` |
+| One turn only | `do one unit and stop` |
 | Don't restart at all | `do everything in this session, no context restart` |
-| Bound an automatic run | `max 12 restarts` |
 | Apply the change at the end | `archive the change when the list is empty` (OpenSpec) |
 | A report at the end | `summarize the results` |
 
 ```
 $ cd <repo> && pi
-> /renew-loop implement openspec/changes/add-x/tasks.md, review each unit, commit
+> /renew-loop work through openspec/changes/add-x/tasks.md, commit each unit, max 20 turns
 ```
 
-Two independent checks run at the top of every analyse phase: the **exit test** (no open unit left →
-stop, the intended ending) and the **no-progress guard** (the task list is unchanged since the last
-cycle → stop and say so). The loop also stops rather than guessing whenever a decision is due, when a
-unit escalates in review twice, when a child run fails, and when a commit or push fails.
+A run ends on the first of: the stop condition, an empty task list, a **hard stop** (a decision is
+due, a commit failed, the same step failed twice), the **no-progress guard** (nothing changed this
+turn), or the **turn budget**. Running out of budget is not a failure — the loop says so, names the
+next step, and hands you `/renew-loop continue from <handover>`.
 
-Being blocked is not by itself a decision. A unit stopped by a defect it did not introduce is
-repaired and the loop carries on — outside the unit's allowed files if that is where the defect
-lives, as its own commit — so long as the repair changes no design the spec fixed. Where it would,
-the loop stops and asks. The line is the design, never the file.
+Being blocked is not by itself a decision. A turn stopped by a defect it did not introduce is
+repaired and the loop carries on — as its own commit, once the defect is proven pre-existing — so
+long as the shortest correct repair changes no design. Where it would, the loop stops and asks. The
+line is the design, never the file.
 
-> **Start with `ask me before each next unit`** until you have seen the no-progress guard fire at
-> least once. It is the one guard with nothing behind it.
+### Opt-in: brief-and-review
+
+Ask for it — *"apply with subagent review"*, *"brief and review each unit"*, *"delegate each unit"* —
+and a unit takes **two** turns instead of one:
+
+```
+ANALYSE turn                                     EXECUTE turn (fresh context)
+├─ pick ONE unit, size it (T0–T3)                ├─ read ONLY handover + brief
+├─ write the brief · write reviewer notes        ├─ run the unit in the runner it found
+├─ handover: Next = execute <unit>               ├─ THEN read reviewer notes, review the diff
+└─ RESTART ─────────────────────────────────────▶├─ minor → fix here · major → re-brief
+                                                 ├─ blocked? → 🔧 repair, or stop
+                                                 └─ tick · commit · next turn
+```
+
+The analysing session's context is thrown away before the unit is executed, so the executor works
+from the brief alone — which is the point, and also why the brief has to be good. Reach for it when
+the work has acceptance criteria you want verified, when each unit should land as its own reviewable
+commit, or when the run is unattended and nothing else will check the result. It costs a restart and
+two turns per unit, which is why it is not the default.
+
+**It looks for a runner first**, and says which it found: the `subagent` tool from
+[`pi-subagents`](#works-best-with), else this repo's `pi-subagent` skill, else **this same session** —
+the mode still writes the brief and the reviewer notes and still splits the turn; what it loses
+without a child runner is the executor's context isolation, not the review.
+
+> **Start with `ask me between turns`** until you have seen the no-progress guard fire at least once.
+> It is the one guard with nothing behind it.
 
 Full documentation — setup, writing the request, worked examples, what happens under the hood,
 troubleshooting, and the design rationale — is in [`docs/renew-loop.md`](docs/renew-loop.md).
@@ -261,9 +290,9 @@ npm install -D @fission-ai/openspec && npx openspec init
 ```
 
 - **[`pi-subagents`](https://github.com/nicobailon/pi-subagents)** — child agents (`worker`, `reviewer`,
-  `scout`, `oracle`, …) behind a `subagent` tool. The execute phase hands each unit to a `worker` child
-  and can put a `reviewer` on the diff, so the loop's own context stays clean across many more units
-  than it otherwise would.
+  `scout`, `oracle`, …) behind a `subagent` tool. This is the runner **brief-and-review** looks for
+  first: each unit runs as a real child session, with a `reviewer` available for a second opinion on
+  the diff. The plain loop uses it only when you ask for the work to be delegated.
 - **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** — spec-driven changes: one
   `openspec/changes/<change>/` directory with a spec delta and a `tasks.md` already written as
   checkboxes, which is exactly the shape this loop consumes. The loop reads the change through
@@ -275,14 +304,14 @@ underneath it:
 
 | Lane | With the companion | Without it |
 |---|---|---|
-| running a unit | `subagent` → `worker`, then a `reviewer` pass | this repo's `pi-subagent` skill; and with no child runner at all, the loop implements the unit itself from the brief |
-| the task list | an OpenSpec `tasks.md`, used as it comes | any markdown checklist — and if the file has units but no checkboxes, the loop **adds `- [ ]` to each unit line** in its own commit, because both of its termination checks need something to tick. Prose with no list at all is transcribed into `.pi/renew-loop/<change>/tasks-<change>.md`, one box per step the document names |
+| running a unit (brief-and-review) | `subagent` → `worker`, then a `reviewer` pass | this repo's `pi-subagent` skill; and with no child runner at all, the unit runs **in this session**, from the brief |
+| the task list | an OpenSpec `tasks.md`, used as it comes | any markdown checklist — and if the file has units but no checkboxes, the loop **adds `- [ ]` to each unit line** in its own commit, because the exit test and the no-progress guard both need something to tick. Prose with no list at all is transcribed into `.pi/renew-loop/<slug>/tasks-<slug>.md`, one box per step the document names |
 | brief and review | `subagent-brief`, `subagent-review` | the loop writes the brief and the reviewer notes itself, to the outlines in the protocol |
-| the restart | `pi-renew` | no-restart mode — both phases in one session |
+| the restart | `pi-renew` | no-restart mode — the turns run in one session, still bounded by the budget |
 
-The lane taken is recorded in the handover's `Environment:` line and named in the phase's report, so a
-run that fell back is visible rather than mysterious. The loop never installs anything, and never stops
-because something is missing.
+What it found is recorded in the handover (`Runner:`, and a note for the rest) and named in the turn's
+report, so a run that fell back is visible rather than mysterious. The loop never installs anything,
+and never stops because something is missing.
 
 ---
 

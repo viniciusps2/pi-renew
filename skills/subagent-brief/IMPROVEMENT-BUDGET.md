@@ -70,19 +70,19 @@ Red items are never applied in-phase by anyone, in any mode.
 
 ---
 
-## Where a 🔴 goes — mode-dependent
+## Where a 🔴 goes — it depends on who is watching
 
-This is the one place the lane depends on how the loop is being driven, and it is deliberately the
+This is the one place the lane depends on how the run is being driven, and it is deliberately the
 only such place.
 
-| Continuation mode | What happens to a 🔴 improvement |
+| How the run is driven | What happens to a 🔴 improvement |
 |---|---|
-| `stop` / `ask` / a one-off delegation | Surface it to the user at the turn's natural stopping point, as numbered options with a recommendation. |
-| **`auto`** | **Do not stop the loop.** Append it to the handover's `## Decisions pending` section and name it in the turn's progress/report line. Continue to the next unit. |
+| A person is about to see the turn — the run pauses between turns, this is its last turn, or it is a one-off delegation | Surface it at the turn's natural stopping point, as numbered options with a recommendation. |
+| **Unattended** — the run restarts into the next turn by itself | **Do not stop the run.** Append it to the handover's `## Decisions pending` section and name it in the turn's progress/report line. Continue to the next turn. |
 
-**In `auto`, a 🔴 improvement is never a hard stop.** It is optional work by definition — it is never
-on the critical path of the unit in hand, so deferring it cannot make the unit wrong. Halting an
-unattended loop for an opportunity is the wrong trade.
+**On an unattended run, a 🔴 improvement is never a hard stop.** It is optional work by definition —
+it is never on the critical path of the unit in hand, so deferring it cannot make the unit wrong.
+Halting an unattended run for an opportunity is the wrong trade.
 
 **This carve-out covers opportunistic improvements only.** It does **not** touch the existing hard
 stops, and must never be used to keep an unattended loop moving past one:
@@ -126,7 +126,7 @@ get conflated that need completely different things:
 | The unit cannot proceed until… | What it needs |
 |---|---|
 | something **mechanical** is repaired | the repair. Nobody has a decision to make |
-| someone **chooses between designs** | the user. Stop, in every mode, including `auto` |
+| someone **chooses between designs** | the user. Stop, however the run is driven — unattended included |
 
 **The shape it covers.** The unit's own work is right; the gate is red for something the unit did not
 introduce — a duplicate registration that only fails once a consumer resolves it by type, a fixture
@@ -170,7 +170,7 @@ trigger, in the same words:
 - does it **weaken a test** — a deleted assertion, a loosened matcher, a `skip`, a simplified double?
 
 **All six "no" → repair it.** Outside the allowed-files table, in another unit's files, without
-asking, under every continuation mode. It is mechanical; there is no decision in it for anyone to
+asking, whoever is watching. It is mechanical; there is no decision in it for anyone to
 make, and stopping an unattended loop to be told "yes, fix the build" is the same wrong trade as
 stopping it for a 🔴 improvement.
 

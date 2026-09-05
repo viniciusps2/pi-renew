@@ -42,9 +42,10 @@ One install registers all three resource kinds from the package manifest:
   extension  ->  the delegate_to_agent tools and the /pi-renew command
   prompts    ->  /renew-loop
   skills     ->  subagent-brief, subagent-review, pi-subagent (+ the pi-driver-common library)
+                 used only by /renew-loop's opt-in brief-and-review mode
 
 Optional companions the loop uses when they are installed, and does without when they are not:
-  pi install npm:pi-subagents            child agents for the execute phase
+  pi install npm:pi-subagents            child agents for brief-and-review mode
   npm install -g @fission-ai/openspec    spec-driven changes and \`openspec archive\`
 `);
   process.exit(0);
@@ -233,7 +234,7 @@ if (has("--migrate")) {
 
 console.log(`
 pi-renew installed. In a pi session:
-  /renew-loop <task list>   run the loop protocol
+  /renew-loop <what to do>  run the loop: one turn per session, 10 turns unless you say otherwise
   /pi-renew                 inspect and control the restart primitive
 
 Optional — turn on the automatic high-context restart in ${join(agentDir, "pi-renew.json")}:

@@ -39,16 +39,20 @@ report "extension did not load" and nothing says why:
 
 ### Workstream A — the restart primitive and the `/renew-loop` protocol
 
-The plan recorded **37 of 42** items done. All five open items are *live-run* items; none is unwritten
-code.
+The plan recorded **37 of 42** items done. All the open items are *live-run* items; none is unwritten
+code. The list below is restated in the vocabulary of the current protocol — turns and a budget, with
+brief-and-review as an opt-in mode — which changed what a live run has to cover, not how much of it
+is outstanding.
 
 | Item | What it needs |
 |---|---|
 | Non-mocked e2e, `compact` half | The `new-session` half is green (above). The `compact` scenario is model-gated and fire-and-forget, with no deterministic raw-RPC trigger; its payload is covered by `test/restart-compact-payload.test.ts`, and its live run belongs to the full-loop runs below |
-| Live run with `restart: none` | The cheapest first validation of the *workflow*: one ordinary session, no extension, no harness — so loop bugs and restart bugs cannot be confused for each other |
-| Full loop under `continuation: ask` | analyse → restart → execute → review → commit → report → wait; the fresh session's `usage.input` at the baseline floor; answering "yes" starts the next unit and increments the restart ordinal |
-| Full loop under `continuation: auto`, on a deliberately unclosable unit | The no-progress guard must fire within one cycle and stop with a report naming the unit, with no commit for the failed unit. **This guard has never fired in anger** — see the recommendation in [`renew-loop.md`](renew-loop.md#automatic-continuation) |
-| Final reconciliation of [`renew-loop.md`](renew-loop.md) | Everything except one clause has landed: the banner is honest, and every example and the under-the-hood diagram are reconciled against `prompts/renew-loop.md`. What is left is folding in any troubleshooting entry the two full-loop runs surface — a close-out obligation on them |
+| Live run in No-restart mode | The cheapest first validation of the *workflow*: one ordinary session, no extension, no harness — so loop bugs and restart bugs cannot be confused for each other |
+| Live run of the plain loop, `ask me between turns` | turn → handover → restart → turn; the fresh session's `usage.input` at the baseline floor; answering "yes" starts the next turn and increments the restart ordinal |
+| Live run that ends on its budget | A run whose work outlasts `max N turns` must stop **at** N, report the budget as spent rather than as an error, and hand back a handover the next run adopts. The budget is the only bound every run has, and it has never been exercised live |
+| Live run on a deliberately unclosable unit | The no-progress guard must fire within one turn and stop with a report naming the unit, with no commit for the failed unit. **This guard has never fired in anger** — see the recommendation in [`renew-loop.md`](renew-loop.md#how-a-run-ends) |
+| Live run in brief-and-review mode | Both halves of a unit across a restart, in each of the three runner lanes the mode falls through — `subagent` tool, `pi-subagent` skill, and this session |
+| Final reconciliation of [`renew-loop.md`](renew-loop.md) | The banner is honest, and every example and the under-the-hood diagram are reconciled against `prompts/renew-loop.md`. What is left is folding in any troubleshooting entry the live runs surface — a close-out obligation on them |
 
 ### Workstream B — restart reliability
 
