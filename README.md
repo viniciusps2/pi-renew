@@ -233,6 +233,7 @@ the only thing that survives.
 | What to work on | `implement tasks.md`, the directory holding it, or just the goal |
 | When to stop | `until the e2e suite is green` — optional |
 | How long to run | `max 20 turns` — optional, **the default budget is 10** |
+| When the handover is archived | `handover max 300 lines` — optional, **the default is 500 lines** |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
 | No restarts at all | `do everything in this session, no context restart` |

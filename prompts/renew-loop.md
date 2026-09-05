@@ -28,6 +28,7 @@ Map it onto the parameters below by intent — there are no flags.
 | `max N turns`, `max N restarts` | the turn budget — **default 10** |
 | `handover <path>` | where the handover lives |
 | nothing about a handover | Step 2 finds this work's own, or creates it |
+| `handover max N lines`, `rotate the handover at N lines` | when the handover is archived and rewritten — **default 500 lines** |
 | `ask me between turns`, `check in each turn` | pause after each turn instead of restarting |
 | `one turn only`, `do one unit and stop` | a budget of 1 |
 | `no context restart`, `do everything in this session` | No-restart mode |
@@ -37,8 +38,8 @@ Map it onto the parameters below by intent — there are no flags.
 | nothing about a summary | no report — end with a short completion statement |
 
 Never guess a missing parameter. Step 2 either resolves it by a rule that gives the same answer every
-turn, or stops and asks. The two exceptions are the ones with safe defaults: an unstated budget is
-**10**, and an unstated mode is the plain loop.
+turn, or stops and asks. The exceptions are the ones with safe defaults: an unstated budget is **10**,
+an unstated rotation threshold is **500 lines**, and an unstated mode is the plain loop.
 
 A run needs at least one way to end. A stop condition, a task list that can empty, or both — and the
 budget behind them either way. If the request gives none of those, the budget alone bounds the run,
@@ -96,9 +97,9 @@ that could answer differently on turn 4 than on turn 3 hands the fresh session s
   handover carries the plan instead. **Never invent a task list**: point at one, or work from the
   goal and record the steps in the handover.
 - **The handover** — below. It is the only thing that survives the restart.
-- **The bounds.** The stop condition in the request, and the turn budget (default 10). Write both
-  into the handover on the first turn and read them back from it afterwards, so a resumed run keeps
-  the bound it started with.
+- **The bounds.** The stop condition in the request, the turn budget (default 10) and the handover's
+  rotation threshold (default 500 lines). Write them into the handover on the first turn and read them
+  back from it afterwards, so a resumed run keeps the bounds it started with.
 - **Make a task list tickable**, if there is one — below.
 - **The restart primitive.** `set_renewal_context` and `renew_session` present → restart between
   turns. Absent → No-restart mode. That is the only capability the default loop cares about; the
@@ -133,6 +134,10 @@ there are two is the point:
 3. legacy paths from before this rule, which are **adopted and then moved**, never written to:
    `.pi/loop/<slug>/handover.md`, `.pi/loop/handover.md`, `<task-list-dir>/handover.md`
 
+A file named `handover-<slug>-old-<n>.md` is an **archive** this run wrote itself — see rotation,
+below. It is never a candidate: do not adopt one, do not write to one, and do not count one among the
+candidates when deciding whether several validate.
+
 A candidate **validates only if it is about this work**: its `Work:` line names the same task list or
 goal, or — for one written before that line existed — its own text plainly refers to it. A handover
 naming *different* work belongs to another run: skip it, never merge the two, and never adopt one
@@ -166,6 +171,7 @@ Mode:        <plain | brief-and-review>  ·  Turn: <n> of <budget>
 Runner:      <brief-and-review only: subagent tool | this session>
 Stop when:   <the stop condition, or "the task list is empty", or "the budget">
 Next:        <the one concrete thing the next turn does first>
+Archive:     <the newest handover-<slug>-old-<n>.md, once rotation has written one>
 
 ## Progress
 <what this turn changed, as facts — files, commits, checks run and their result>
@@ -180,6 +186,43 @@ Next:        <the one concrete thing the next turn does first>
 ## Notes
 <gotchas the next turn would otherwise rediscover>
 ```
+
+### When the handover gets too long
+
+Rewriting the handover every turn is not the same as *replacing* it, and over a long run the two drift
+apart: each turn keeps the last turn's progress "for context", and by turn twenty the file is mostly
+finished history — a reader with no memory of the session has to mine the one paragraph that says where
+the loop is out of nineteen that no longer decide anything. A handover that large also costs the fresh
+context it was supposed to save.
+
+So measure it at the end of every turn, once the rewrite is done. **Over 500 lines** — or the threshold
+the request named — rotate it, in this same turn:
+
+1. **Archive the current file** as `handover-<slug>-old-<n>.md` beside it, where `n` is one higher than
+   the highest already there — `handover-add-auth-old-1.md`, then `-old-2.md` (`git mv` where it is
+   tracked). Never delete an archive, never write into one, never renumber the existing ones.
+2. **Write a new handover** at the canonical path, in the shape above, holding only what the next
+   sessions actually need:
+   - the header block in full — it is the run's identity and bounds, and every turn re-reads it — plus
+     an `Archive:` line naming the file you just moved;
+   - **exactly where in the flow the run is**: the step this run is at, and in brief-and-review mode
+     which half of which unit, with the brief and reviewer-notes paths when one is mid-unit;
+   - what the last turn or two changed, as facts. The no-progress guard compares against `## Progress`,
+     so it needs a real baseline — not the whole history, but not an empty section either;
+   - everything still **open**: the units not yet ticked, `## Decisions pending` in full, and any 🟡 or
+     🔴 improvement carried forward;
+   - the **traps**: gotchas the next turn would otherwise rediscover, what it must not re-attempt, what
+     looks wrong but is deliberate, and any repair whose reason still applies.
+   A non-default threshold goes in `## Notes`, so a run resumed with `continue from <path>` keeps the
+   bound it started with.
+3. **Leave the rest behind.** Finished units' narratives, checks that passed and stayed passing,
+   decisions already made and applied, notes about code that no longer exists — the archive holds them,
+   and a turn that genuinely needs one can read it by name. Nothing is lost by rotating; the cost is all
+   in *not* rotating.
+
+Rotation is bookkeeping, not the turn's work: it lands in the same commit as the turn's handover update,
+it never consumes a unit, and it is never a reason to stop. Say in your report line that you rotated and
+name the archive — a handover that shrank between turns should never look like state that went missing.
 
 ### Making a task list tickable
 
@@ -219,7 +262,7 @@ Check it once, on the first turn of a run:
 5. **Commit**, if the request asks for commits, with the task-list edit and the handover update in
    the same commit; push only if the request asks for that too.
 6. **Rewrite the handover** to the shape above, with this turn's number and a `Next:` line that the
-   next session could act on cold.
+   next session could act on cold — then rotate it if it has outgrown the threshold, as above.
 
 **A blocked turn is not automatically a stop.** First prove the blocker is not your own work:
 reproduce it on something referencing none of this turn's changes, or on a clean tree, and name the

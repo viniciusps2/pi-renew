@@ -126,6 +126,7 @@ want, and the protocol translates it into its parameters.
 | When to stop | `until the e2e suite is green`, `stop when the migration runs clean` — **optional** |
 | How long to run | `max 20 turns` — **optional**; the default budget is **10** |
 | Where state lives | `handover .pi/renew-loop/add-auth/handover-add-auth.md` — **optional**; say nothing and the loop finds or creates one |
+| When state gets archived | `handover max 300 lines` — **optional**; the handover rotates at **500 lines** by default |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
 | Don't restart at all | `do everything in this session, no context restart` |
@@ -166,9 +167,10 @@ brief-and-review mode the current unit's brief and notes sit beside it:
 
 ```
 .pi/renew-loop/add-auth/
-├── handover-add-auth.md      # what just happened, and where the loop is
-├── brief-3-2.md              # unit 3.2's brief          (brief-and-review only)
-└── review-3-2.md             # unit 3.2's reviewer notes (brief-and-review only)
+├── handover-add-auth.md        # what just happened, and where the loop is
+├── handover-add-auth-old-1.md  # history, once the handover outgrew 500 lines
+├── brief-3-2.md                # unit 3.2's brief          (brief-and-review only)
+└── review-3-2.md               # unit 3.2's reviewer notes (brief-and-review only)
 ```
 
 The slug is the task list's own directory where that names the work (`openspec/changes/add-auth/tasks.md`
@@ -197,6 +199,33 @@ the previous turn just wrote.
 
 Naming a path explicitly always wins and skips the search, which is what `/renew-loop continue from
 .pi/renew-loop/add-auth/handover-add-auth.md` does.
+
+### When the handover gets too long
+
+The handover is rewritten every turn, but rewriting is not replacing: each turn tends to keep the last
+turn's progress "for context", and twenty turns of that leaves a file which is mostly finished history.
+A handover well past a hundred kilobytes is a real outcome of a long OpenSpec run, and it fails twice
+over — the next session has to mine the paragraph that says where the loop actually is out of nineteen
+that no longer decide anything, and reading it spends the fresh context the restart was there to buy.
+
+So the loop measures the handover at the end of each turn, after rewriting it. Past **500 lines** — or
+whatever `handover max N lines` said — it rotates:
+
+- the current file is moved to `handover-<slug>-old-<n>.md` beside it, `n` counting up from the highest
+  archive already there. Archives are never deleted, written into, renumbered, or adopted as a handover
+  by a later run;
+- a fresh handover is written at the canonical path holding only what the next sessions need: the header
+  block, an `Archive:` line naming what was just moved, exactly where in the flow the run is (in
+  brief-and-review, which half of which unit, and the brief and notes paths), the last turn or two of
+  progress as the no-progress guard's baseline, everything still open — units, pending decisions,
+  carried-forward improvements — and the traps: what to avoid, what not to re-attempt, what looks wrong
+  but is deliberate;
+- everything else stays in the archive: finished units' narratives, checks that passed and stayed
+  passing, decisions already made and applied. Nothing is lost — it is one `cat` away, by name.
+
+Rotation happens in the same commit as that turn's handover update, never consumes a unit or a turn, and
+is named in the turn's report, so a handover that suddenly got shorter is never mistaken for state that
+went missing.
 
 ### When the task list has no checkboxes
 
@@ -514,6 +543,12 @@ request for the two-turn brief-and-review mode.
 The file listed units but had nothing to tick, and the exit test and the no-progress guard both read that
 file. The change is `- [ ]` on each unit line and nothing else, in its own commit before the first unit.
 Give it a list that already has checkboxes — an OpenSpec `tasks.md`, say — and it changes nothing.
+
+**A `handover-<slug>-old-1.md` appeared, and the handover got shorter.**
+That is rotation: the handover passed 500 lines, so the loop archived it under that name and rewrote a
+fresh one with only what the next sessions need — where the run is, what is open, the pending decisions
+and the traps. Nothing was dropped; the archive keeps the rest, and the new handover's `Archive:` line
+names it. Say `handover max N lines` in the request to rotate at a different size.
 
 **It created a second handover for what I thought was the same work.**
 The `Work:` line of the existing handover names something different from what this run resolved.
