@@ -47,8 +47,10 @@ Only the sub-agent's final text goes to stdout; diagnostics to stderr; non-zero 
 
 ## Options (`$PI --help`)
 
-The model is **pinned to `llm-1/qwen3.8-27b`** — no `-m`/`--model` flag, no `PI_AGENT_MODEL`
-override, and the wrapper never runs `pi --list-models`. Thinking defaults to **`low`**.
+**No model is pinned.** Without `-m`/`--model` the wrapper passes no `--model` to `pi` at all,
+so `pi` uses the default model from its own settings (`defaultProvider`/`defaultModel` in
+`~/.pi/agent/settings.json`). `-m`/`--model` overrides that for one run. Thinking defaults to
+**`low`**.
 
 | Option | Purpose |
 |---|---|

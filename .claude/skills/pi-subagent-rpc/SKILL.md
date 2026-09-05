@@ -46,17 +46,18 @@ $PI_RPC start --run-dir /tmp/probe -- -nt -ne -nc
 
 | Verb | Flags | Behaviour |
 |---|---|---|
-| `start` | `--run-dir <dir>` (required) `--model <id>` `--cwd <dir>` `--approve` `--idle <s>` `--timeout <s>` `[-- <extra pi flags>]` | Validates the model, creates the run directory, spawns a detached supervisor, prints the run dir, exits 0 immediately. |
+| `start` | `--run-dir <dir>` (required) `--model <id>` `--cwd <dir>` `--approve` `--idle <s>` `--timeout <s>` `[-- <extra pi flags>]` | Validates `--model` if one is given, creates the run directory, spawns a detached supervisor, prints the run dir, exits 0 immediately. |
 | `send` | `--run-dir <dir>` `[--follow-up]` `<text>` | Appends one `prompt` command to `in.jsonl`; the running supervisor forwards it to `pi`'s stdin. `--follow-up` adds `"streamingBehavior":"followUp"`, queuing the text for once the current run finishes (rejected by `pi` if nothing is streaming — send a plain prompt in that case). |
 | `settled` | `--run-dir <dir>` `[--wait <s>]` | Exit 0 if settled, 1 if not. `--wait` polls (every 200ms) until settled, the session dies, or the wait elapses. |
 | `dead` | `--run-dir <dir>` | Exit 0 if the `pi` process has exited, 1 if it is still running. |
 | `read` | `--run-dir <dir>` `[--all]` | Prints the last assistant text (or every assistant text seen, with `--all`) to stdout; prints any `extension_error` events to stderr first. Exits 0/4/3 per the outcome (see below). |
 | `stop` | `--run-dir <dir>` `[--kill]` | Closes the session's stdin (or sends SIGKILL with `--kill`), waits for it to exit, reports the result. The one verb beyond the five-operation contract — a long-lived session with no shutdown path leaks a process that pins the model it loaded. |
 
-`--model` defaults to the shared pin in `../pi-driver-common/model.js`
-(`llm-1/qwen3.8-27b`) and is validated against `pi --list-models` before anything is created —
-see the contract doc for why a bare or uncatalogued id is rejected rather than silently
-substituted.
+`--model` is **optional and has no default**. Omit it and no `--model` reaches `pi`, which then
+uses the default model from its own settings (`defaultProvider`/`defaultModel` in
+`~/.pi/agent/settings.json`) — this driver never pins a model of its own. Supply one and it is
+validated against `pi --list-models` before anything is created; see the contract doc for why a
+bare or uncatalogued id is rejected rather than silently substituted.
 
 ## Exit codes
 

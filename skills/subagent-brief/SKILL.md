@@ -25,8 +25,7 @@ restate their content — a restatement drifts and the sub-agent cannot tell whi
 
 **Find the executor before you write the brief.** A brief is written *for* whoever runs it, so settle
 that first, in this order: a **`subagent` tool** (from `pi-subagents`) — the best case, a real child
-session per unit; else the **`pi-subagent` skill** in this package, a one-shot `pi` child; else
-**this session**, continuing with the brief as its own instructions. The absence of a runner does not
+session per unit; else **this session**, continuing with the brief as its own instructions. The absence of a runner does not
 cancel the brief: a cold executor and a same-session executor need the same decisions fixed, and the
 brief is what makes the result checkable by someone who was not there. Name the executor you found at
 the top of the brief, so the review knows what it is reviewing.

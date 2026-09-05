@@ -4,7 +4,7 @@
 # `node --test` (it needs a live model endpoint and a real tmux session, so an offline
 # unit-test run must never depend on it). Run it by hand:
 #
-#   skills/pi-driver-common/cross-verify.sh <run-dir>
+#   .claude/skills/pi-driver-common/cross-verify.sh <run-dir>
 #
 # Proves that pi-subagent-rpc and pi-subagent-tmux AGREE: identical exit codes at every
 # step, and identical captured answer text (by the "contains" rule both smoke.sh files
@@ -23,11 +23,10 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$HERE/../.." && pwd)"
+REPO_ROOT="$(cd "$HERE/../../.." && pwd)"
 PI_RPC="$REPO_ROOT/.claude/skills/pi-subagent-rpc/pi-rpc.js"
 PI_TMUX="$REPO_ROOT/.claude/skills/pi-subagent-tmux/pi-tmux.js"
 
-MODEL="llm-1/qwen3.8-27b"
 
 RUN_DIR_BASE="${1:?usage: cross-verify.sh <run-dir>}"
 RPC_A_DIR="$RUN_DIR_BASE/rpc-A"
@@ -42,7 +41,9 @@ pass() { printf 'cross-verify: ok: %s\n' "$*"; }
 printf 'cross-verify: running control probe (20s deadline)...\n'
 PROBE_OUT=""
 PROBE_RC=0
-PROBE_OUT=$(timeout 20 pi -p --mode json -ne -nt --no-session --model "$MODEL" "Reply with exactly: CONTROL-OK" 2>/dev/null) || PROBE_RC=$?
+# No --model: the probe must exercise the same default model the drivers will get, and naming
+# one here would test an endpoint the drivers never use.
+PROBE_OUT=$(timeout 20 pi -p --mode json -ne -nt --no-session "Reply with exactly: CONTROL-OK" 2>/dev/null) || PROBE_RC=$?
 if [ "$PROBE_RC" -ne 0 ]; then
   printf 'cross-verify: SKIP — model endpoint not answering; live cross-verification cannot run\n'
   exit 0

@@ -28,8 +28,7 @@ the same extension and the same child runner serve callers that have nothing to 
 | `/renew-loop` | a prompt template | the protocol: work → hand over → restart, until a stop condition or the budget |
 | `pi-renew` | an extension | a generic context-restart primitive; knows nothing about loops |
 | `subagent-brief`, `subagent-review` | skills | **brief-and-review only** — the brief the executor works from, and the notes the diff is reviewed against |
-| `pi-subagent` | a skill | runs a unit as a one-shot child, where no `subagent` tool is installed |
-| `pi-subagent-rpc`, `pi-subagent-tmux` | skills, under `.claude/skills/` | drive a `pi` process from outside — for developing and testing this repo only, deliberately kept out of the `skills/` tree `pi` loads |
+| `pi-subagent`, `pi-subagent-rpc`, `pi-subagent-tmux` | skills, under `.claude/skills/` | drive a `pi` process from outside — for developing and testing this repo only, deliberately kept out of the `skills/` tree `pi` loads |
 | `pi-subagents`, OpenSpec | third-party, optional | better lanes for the same jobs — see [Optional companions](#optional-companions) |
 
 ---
@@ -73,9 +72,8 @@ stack — and a duplicate extension is exactly what the live tests refuse to run
 `./install.mjs --check` to list the leftovers and `./install.mjs --migrate` to remove them.
 
 The manifest points `skills` at the **whole tree**, not at individual skills, and that matters: the
-skills are siblings of one another — `subagent-review` reads `../subagent-brief/…`, and `pi-subagent`
-reads `../pi-driver-common/…`, a shared library with no `SKILL.md` of its own. Registering skills one
-by one would break those relative references. The two development drivers are deliberately *not* in
+skills are siblings of one another — `subagent-review` reads `../subagent-brief/…`. Registering skills
+one by one would break those relative references. The development drivers are deliberately *not* in
 this tree — they live under `.claude/skills/`, so `pi` never loads them.
 
 `/renew-loop` installs globally, so it works in every repo with no trust gate — while the file itself stays
@@ -370,11 +368,10 @@ line:
 
 1. a **`subagent` tool** (from [`pi-subagents`](#optional-companions)) — a real child session per
    unit, with a `reviewer` child available as a second opinion on the diff;
-2. the **`pi-subagent` skill** in this package — a one-shot `pi` child;
-3. **this same session** — no child at all: the unit is implemented here, from the brief, under the
+2. **this same session** — no child at all: the unit is implemented here, from the brief, under the
    same restricted reading.
 
-The third is a fallback, not a cancellation. The brief, the reviewer notes and the two-turn split all
+The second is a fallback, not a cancellation. The brief, the reviewer notes and the two-turn split all
 still happen; what is lost without a child runner is the executor's context isolation, not the review.
 A brief written for a cold executor is worth writing even when you are the executor — it is what makes
 the result checkable by someone who was not there, and after a restart, that is you.
@@ -394,7 +391,7 @@ it took.
 
 | Lane | Best | Then | Floor |
 |---|---|---|---|
-| running a unit (brief-and-review) | [`pi-subagents`](https://github.com/nicobailon/pi-subagents) — `subagent` with `agent: "worker"`, and a `reviewer` child for a second opinion | this repo's `pi-subagent` skill (one-shot `pi -p`) | the unit runs in this session, from the brief, under the same restricted reading |
+| running a unit (brief-and-review) | [`pi-subagents`](https://github.com/nicobailon/pi-subagents) — `subagent` with `agent: "worker"`, and a `reviewer` child for a second opinion | — | the unit runs in this session, from the brief, under the same restricted reading |
 | the work's shape | [OpenSpec](https://github.com/Fission-AI/OpenSpec) — `openspec show/status/validate`, and `openspec archive` to apply the change when you ask for it | — | a markdown checklist, and the loop adds the checkboxes if the file has none |
 | brief and review | `subagent-brief`, `subagent-review` (this repo, installed with it) | — | the loop writes the brief and the notes itself, to the outlines in the protocol |
 | the restart | `pi-renew` (this repo) | — | No-restart mode: the turns run in one session, still bounded |
@@ -444,28 +441,31 @@ can expand:
 
 ## Driving `pi` from outside
 
-Three skills run a `pi` process from the shell. Only the first is reachable from the loop, and only in
-brief-and-review mode; the other two exist so this tooling can be tested without a human in it.
+Three skills run a `pi` process from the shell. **None of them is reachable from the loop** — they all
+live under `.claude/skills/`, outside the `skills/` tree the `pi` manifest registers, and they exist so
+this tooling can be tested without a human in it.
 
-| Skill | Where it lives | Mode | Use it for |
-|---|---|---|---|
-| `pi-subagent` | `skills/` | one-shot | **brief-and-review's fallback runner** — it launches this per unit where `pi-subagents` is not installed; also a self-contained question. Cannot exercise restarts at all |
-| `pi-subagent-rpc` | `.claude/skills/` | long-lived, headless | development only: scripted runs, asserting on structured events |
-| `pi-subagent-tmux` | `.claude/skills/` | long-lived, real TUI | development only: the surface you actually use; dead-pane post-mortems |
+| Skill | Mode | Use it for |
+|---|---|---|
+| `pi-subagent` | one-shot | a self-contained question or task in a separate `pi` process. Cannot exercise restarts at all |
+| `pi-subagent-rpc` | long-lived, headless | scripted runs, asserting on structured events |
+| `pi-subagent-tmux` | long-lived, real TUI | the surface you actually use; dead-pane post-mortems |
 
-The two development drivers sit under `.claude/skills/` on purpose: they exist to test this repo's own
-tooling, and nothing `/renew-loop` does should be able to reach them. They still resolve `../pi-driver-common/…`
-— the repo carries a symlink at `.claude/skills/pi-driver-common` pointing back at `skills/pi-driver-common`,
-so the one shared library has exactly one copy.
+They sit under `.claude/skills/` on purpose: they exist to test this repo's own tooling, and nothing
+`/renew-loop` does should be able to reach them. `pi-driver-common` — the shared library the three
+resolve as `../pi-driver-common/…` — is a fourth directory alongside them, so there is exactly one copy.
+
+**None of them pins a model.** Given no `--model` they pass none, and `pi` resolves the default from
+its own settings (`defaultProvider`/`defaultModel` in `~/.pi/agent/settings.json`); an explicit
+`--model` is validated against the catalogue before anything is spawned.
 
 The RPC driver sees things the model and the tools cannot — notably runtime errors from messages an extension
 tried to send. When a run "succeeds" but nothing happened, look there first.
 
-Where `pi-subagents` is installed, brief-and-review prefers its `subagent` tool over the `pi-subagent`
-skill — a real child session, with a `reviewer` available for a second pass on the diff. The skill stays as
-the floor beneath it, and neither is required: with no child runner at all the unit runs in the session
-that briefed it. All three runners produce the same artefacts, so a run that changes runner mid-way is
-still one coherent history.
+Where `pi-subagents` is installed, brief-and-review runs each unit through its `subagent` tool — a real
+child session, with a `reviewer` available for a second pass on the diff. It is not required: with no
+child runner the unit runs in the session that briefed it. Both runners produce the same artefacts, so a
+run that changes runner mid-way is still one coherent history.
 
 ---
 
@@ -502,9 +502,8 @@ That is the default budget doing its job. The handover holds the run: continue w
 `/renew-loop continue from <handover>`, or re-run the same request with `max 25 turns`.
 
 **It implemented the unit in my own session instead of a child.**
-In brief-and-review mode, no runner was installed — neither the `subagent` tool from `pi-subagents` nor
-this repo's `pi-subagent` skill. That is the documented floor, not a fault, and the handover's `Runner:`
-line records it. Install `pi-subagents` if you want a real child session per unit. (In the plain loop
+In brief-and-review mode, no runner was installed — there was no `subagent` tool from `pi-subagents`.
+That is the documented floor, not a fault, and the handover's `Runner:` line records it. Install `pi-subagents` if you want a real child session per unit. (In the plain loop
 this is simply how it works: the turn does its own work unless you asked for it to be delegated.)
 
 **It wrote no brief, and reviewed nothing.**

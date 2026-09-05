@@ -25,7 +25,8 @@
 //                        real `pi` binary has no such file — see the unit suite
 //
 // Model validation (../pi-driver-common/model.js) happens before ANY of the above exists, and
-// before the tmux session-existence check below: `pi` warns but proceeds on an unknown model
+// before the tmux session-existence check below — but only for an EXPLICIT --model; with none
+// given, no --model is passed to `pi` at all and it picks its own default. `pi` warns but proceeds on an unknown model
 // id, so this script rejects an unqualified or uncatalogued id itself, first.
 //
 // Session identity (measured, not assumed): `start` mints a uuid (crypto.randomUUID()) and
@@ -64,8 +65,10 @@
 //
 // Flags:
 //   --run-dir <dir>   The session's state directory (required on every verb).
-//   --model <id>      Fully-qualified "provider/model" (default: the shared pin in
-//                      ../pi-driver-common/model.js). Validated before anything is spawned.
+//   --model <id>      Fully-qualified "provider/model". OPTIONAL, and there is no default:
+//                      omit it and no --model reaches `pi`, which then uses the default model
+//                      from its own settings. Supplied, it is validated before anything is
+//                      spawned (`pi` only warns on an unknown id, so nobody else would catch it).
 //   --cwd <dir>       Working directory for the `pi` process (default: this process's cwd).
 //   --approve         Trust project-local files for this run (`pi -a`). OFF by default, for
 //                      the same reason pi-rpc.js's --approve is off by default: non-interactive
@@ -123,7 +126,7 @@ import { fileURLToPath } from 'node:url';
 
 import { EXIT_USAGE, EXIT_DIED, EXIT_SETTLED_WITH_TEXT, EXIT_SETTLED_NO_TEXT } from '../pi-driver-common/exit-codes.js';
 import { computeIdleSeconds } from '../pi-driver-common/idle.js';
-import { resolveModelId, DEFAULT_MODEL_ID } from '../pi-driver-common/model.js';
+import { resolveModelId, readDefaultModelId } from '../pi-driver-common/model.js';
 import { foldSessionEntries } from '../pi-driver-common/session.js';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
@@ -300,9 +303,12 @@ function cmdStart(argv) {
   const runDirArg = values['--run-dir'];
   if (!runDirArg) throw new UsageError('start', 'requires --run-dir <dir>');
 
-  // Model validation happens before anything else exists — a rejected id leaves nothing behind
-  // to clean up (mirrors pi-rpc.js's cmdStart exactly).
-  const resolved = resolveModelId(values['--model'] ?? DEFAULT_MODEL_ID);
+  // No --model means no --model: the flag is omitted from the pane's argv and `pi` resolves
+  // its own default, so this driver can never pin a model the user did not configure. An
+  // EXPLICIT --model is still validated first, before anything else exists, so a rejected id
+  // leaves nothing behind (mirrors pi-rpc.js's cmdStart exactly).
+  const requestedModel = values['--model'];
+  const modelId = requestedModel === undefined ? null : resolveModelId(requestedModel).id;
 
   const runDir = path.resolve(runDirArg);
   const sessionName = tmuxSessionNameFor(runDir);
@@ -336,7 +342,8 @@ function cmdStart(argv) {
   // decision 16: build the pane command as a plain argv array, never one interpolated string —
   // tmux runs a command directly (no shell) when none of its own argv tokens contain shell
   // metacharacters, which is what keeps #{pane_pid} the `pi` process itself.
-  const piArgs = ['--model', resolved.id, '--session-dir', sessionsDir, '--session-id', sessionId, '-ne', '-nc'];
+  const piArgs = ['--session-dir', sessionsDir, '--session-id', sessionId, '-ne', '-nc'];
+  if (modelId !== null) piArgs.unshift('--model', modelId);
   if (values['--approve']) piArgs.push('--approve');
   piArgs.push(...extra);
 
@@ -370,7 +377,9 @@ function cmdStart(argv) {
   writeFileSync(
     metaPath,
     JSON.stringify({
-      model: resolved.id,
+      // The model the caller pinned, or the default `pi` is expected to pick (read from its
+      // settings purely so meta.json names one). null when neither is known.
+      model: modelId ?? readDefaultModelId(),
       cwd,
       approve: Boolean(values['--approve']),
       sessionId,

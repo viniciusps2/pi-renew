@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCatalogue, resolveModelId, DEFAULT_MODEL_ID } from '../model.js';
+import { parseCatalogue, resolveModelId, readDefaultModelId } from '../model.js';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // A fixture catalogue shaped like real `pi --list-models` output: a header row, whitespace-
 // aligned columns, and — deliberately — BOTH a row for provider "openrouter" model "qwen"
@@ -54,18 +57,41 @@ test('a candidate id splits on the FIRST "/" only, resolving the full model colu
   });
 });
 
-test('the default pin resolves, and an explicit different catalogued id overrides it', () => {
+test('an explicit catalogued id resolves', () => {
   const listModels = () => FIXTURE_CATALOGUE;
-  const pinned = resolveModelId(DEFAULT_MODEL_ID, { listModels });
-  // The pin is asserted against the fixture, not against the live catalogue: this suite is
-  // offline by design. Re-pinning DEFAULT_MODEL_ID (model.js) therefore REQUIRES the new row to
-  // be present in the fixture above — if it is not, this test fails rather than silently passing,
-  // which is the point of asserting the pin at all. (2026-08-28: the pin flipped back to
-  // llm-1/qwen3.8-27b, F139/D-H87; the Flash-Next row stays in the fixture as an ordinary row.)
-  assert.strictEqual(pinned.id, 'llm-1/qwen3.8-27b');
+  // There is no default pin to assert any more: a driver given no --model passes none, so the
+  // only id this resolver ever sees is one a caller named explicitly.
+  assert.strictEqual(resolveModelId('openrouter/qwen', { listModels }).id, 'openrouter/qwen');
+  assert.strictEqual(resolveModelId('llm-1/qwen3.8-27b', { listModels }).id, 'llm-1/qwen3.8-27b');
+});
 
-  const overridden = resolveModelId('openrouter/qwen', { listModels });
-  assert.strictEqual(overridden.id, 'openrouter/qwen');
+// --- readDefaultModelId: reporting only, and null rather than a guess ------------------
+function settingsFile(contents) {
+  const dir = mkdtempSync(join(tmpdir(), 'pi-driver-settings-'));
+  const path = join(dir, 'settings.json');
+  writeFileSync(path, typeof contents === 'string' ? contents : JSON.stringify(contents));
+  return path;
+}
+
+test('readDefaultModelId joins defaultProvider and the unqualified defaultModel', () => {
+  // This is the real shape: `pi` stores the provider separately and the model unqualified.
+  const settingsPath = settingsFile({ defaultProvider: 'llm-1', defaultModel: 'qwen3.8-27b-superfast' });
+  assert.strictEqual(readDefaultModelId({ settingsPath }), 'llm-1/qwen3.8-27b-superfast');
+});
+
+test('readDefaultModelId leaves an already-qualified defaultModel alone', () => {
+  const settingsPath = settingsFile({ defaultProvider: 'llm-1', defaultModel: 'openrouter/qwen' });
+  assert.strictEqual(readDefaultModelId({ settingsPath }), 'openrouter/qwen');
+});
+
+test('readDefaultModelId returns null rather than guessing', () => {
+  // Every one of these must be null, never a substituted id: a driver treats null as "unknown"
+  // and still runs with no --model, which is the whole point of removing the pin.
+  assert.strictEqual(readDefaultModelId({ settingsPath: join(tmpdir(), 'no-such-settings-file.json') }), null);
+  assert.strictEqual(readDefaultModelId({ settingsPath: settingsFile('{ not json') }), null);
+  assert.strictEqual(readDefaultModelId({ settingsPath: settingsFile({ defaultProvider: 'llm-1' }) }), null);
+  assert.strictEqual(readDefaultModelId({ settingsPath: settingsFile({ defaultModel: 'qwen3.8-27b' }) }), null);
+  assert.strictEqual(readDefaultModelId({ settingsPath: settingsFile({ defaultProvider: '', defaultModel: 'x' }) }), null);
 });
 
 test('the catalogue parser skips the header row', () => {

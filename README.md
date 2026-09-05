@@ -260,7 +260,7 @@ ANALYSE turn                                     EXECUTE turn (fresh context)
 | the extension | the restart between the two halves — which is the point: the analysing session's context is **thrown away before the unit is executed** |
 | [`skills/subagent-brief`](skills/subagent-brief) | writes the brief a cold-start executor can carry out without rework — the preflight sweeps, the T0–T3 tier that sizes how much verification the unit earns, the decisions to settle up front, the nine-section structure, the improvement budget |
 | [`skills/subagent-review`](skills/subagent-review) | writes the reviewer notes *before the diff exists*, then reviews against them: re-runs the gate, audits the diff for what a green suite cannot catch, triages what is merely worth improving |
-| the runner | where the unit actually executes: the `subagent` tool from [`pi-subagents`](https://github.com/nicobailon/pi-subagents) if installed, else [`skills/pi-subagent`](skills/pi-subagent) (a one-shot `pi` child), else **this same session** |
+| the runner | where the unit actually executes: the `subagent` tool from [`pi-subagents`](https://github.com/nicobailon/pi-subagents) if installed, else **this same session**, from the brief |
 | OpenSpec | `openspec show`/`status` to read the change, `openspec validate --strict` to gate spec-touching units, and `openspec archive` to **apply the change** once the list is empty |
 
 The executor works from the brief alone — which is the point, and also why the brief has to be
@@ -286,7 +286,7 @@ npm install -g @fission-ai/openspec     # spec-driven changes
 
 | Lane | With the companion | Without it |
 |---|---|---|
-| running a unit | `subagent` → `worker`, then a `reviewer` pass | the `pi-subagent` skill; with no child runner at all, the unit runs **in this session**, from the brief |
+| running a unit | `subagent` → `worker`, then a `reviewer` pass | the unit runs **in this session**, from the brief |
 | the task list | an OpenSpec `tasks.md`, used as it comes | any markdown checklist — the loop adds checkboxes if there are none |
 | brief and review | `subagent-brief`, `subagent-review` | the loop writes both itself, to the outlines in the protocol |
 | the restart | `pi-renew` | No-restart mode — the turns run in one session, still bounded by the budget |
@@ -301,8 +301,6 @@ npm install -g @fission-ai/openspec     # spec-driven changes
 | [`prompts/renew-loop.md`](prompts/renew-loop.md) | **the `/renew-loop` protocol** — work → hand over → restart, until a stop condition or the turn budget |
 | [`skills/subagent-brief`](skills/subagent-brief) | brief-and-review only — writes the delegation brief |
 | [`skills/subagent-review`](skills/subagent-review) | brief-and-review only — reviews what came back |
-| [`skills/pi-subagent`](skills/pi-subagent) | runs `pi` as a one-shot child; the runner brief-and-review falls back to |
-| [`skills/pi-driver-common`](skills/pi-driver-common) | the shared driver library (model pinning, idle watchdog, exit codes). No `SKILL.md` — `pi` does not load it as a skill |
 
 The first two rows are the whole default. The layering is the contract: `/renew-loop` calls the
 pieces below it, and none of them knows anything about loops, turns or reasons — which is what lets
@@ -317,7 +315,7 @@ the same extension serve callers with nothing to do with this protocol.
 | [`docs/STATUS.md`](docs/STATUS.md) | **What is actually proven** — the verification run, what is outstanding, the open decisions |
 | [`skills/subagent-brief/VERIFICATION-MENU.md`](skills/subagent-brief/VERIFICATION-MENU.md) | Which check earns its cost on which change — the T0–T3 tiers, per language |
 | [`skills/subagent-brief/IMPROVEMENT-BUDGET.md`](skills/subagent-brief/IMPROVEMENT-BUDGET.md) | What an agent may improve on its own authority (🟢), propose (🟡), escalate (🔴), or repair to unblock a unit (🔧) |
-| [`skills/pi-driver-common/CONTRACT.md`](skills/pi-driver-common/CONTRACT.md) | The shared driver contract: *start · send · settled? · dead? · read* |
+| [`.claude/skills/pi-driver-common/CONTRACT.md`](.claude/skills/pi-driver-common/CONTRACT.md) | The shared driver contract: *start · send · settled? · dead? · read* — development-only |
 
 ## Development
 
@@ -326,17 +324,18 @@ cd pi-extensions/pi-renew && npm install
 npx vitest run          # unit suite
 npx tsc --noEmit        # typecheck
 
-cd ../../skills/pi-driver-common && node --test
+cd ../../.claude/skills/pi-driver-common && node --test
 ```
 
 Two of the extension's test files (`restart-e2e`, `renewal-state-live`) drive a **real** `pi`
 process and need a live model endpoint, a trusted checkout, and no second copy of this extension
 installed — see [`docs/STATUS.md`](docs/STATUS.md#verified-here).
 
-`.claude/skills/` holds two development-only drivers — `pi-subagent-rpc` (headless, structured
-events) and `pi-subagent-tmux` (a real TUI in a tmux pane) — for driving a long-lived `pi` from
-outside while testing this tooling. They sit outside `skills/` deliberately, so `pi` never loads
-them and `/renew-loop` can never reach them.
+`.claude/skills/` holds the development-only tooling — `pi-subagent` (a one-shot `pi` child),
+`pi-subagent-rpc` (headless, structured events), `pi-subagent-tmux` (a real TUI in a tmux pane),
+and `pi-driver-common`, the library the three share. They sit outside `skills/` deliberately, so
+`pi` never loads them and `/renew-loop` can never reach them. None of them pins a model: given no
+`--model` they pass none, and `pi` uses the default from its own settings.
 
 ## License
 

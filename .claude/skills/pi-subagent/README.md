@@ -8,9 +8,12 @@ the wrapper, or when you want to bypass it.
 Per call the wrapper runs:
 
 ```bash
-pi -p --mode json --model llm-1/qwen3.8-27b --thinking low \
+pi -p --mode json --thinking low \
    --no-extensions --no-session --no-context-files [tool flags] "PROMPT"
 ```
+
+No `--model`: `pi` resolves its own default (`defaultProvider`/`defaultModel` in
+`~/.pi/agent/settings.json`). `-m`/`--model` adds the flag for one run.
 
 - `--mode json` streams typed JSONL events; the **last `agent_end`** carries every message of the
   run. The final answer is the last assistant message's text blocks:

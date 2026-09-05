@@ -60,21 +60,19 @@ import {
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
+import { discoverDefaultModel } from "./default-model";
 
 // --- Portable paths (computed from this file's own location, never hardcoded to /data/...) ---
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 /** The extension entry point, loaded with an explicit `-e` (F125). Absolute, in the repo. */
 const EXTENSION_PATH = resolve(TEST_DIR, "..", "pi-renew.ts");
 
-// --- The pin (decision 7): hardcoded, never resolved from model.js or an env var. ---
-// `llm-1/qwen3.8-27b` is the pin of this repo's live artifacts again as of the 2026-08-28 evening
-// flip-back (D-H87, user instruction). The 27b endpoint was dead the same morning (F131) but
-// answered a control prompt in ~1-2 s at the 18:08 check (F139) and stays the pin. It is named both
-// here and in the seed's `model_change` entry, so the resumed session is not at the mercy of
-// whatever `defaultModel` the machine happens to hold.
-const MODEL_ID = "llm-1/qwen3.8-27b";
-const MODEL_PROVIDER = "llm-1";
-const MODEL_ID_SHORT = "qwen3.8-27b";
+// --- The model: discovered from `pi`'s own settings, never pinned here (see default-model.ts).
+// The seed's `model_change` entry and the `--model` this test spawns `pi` with both come from
+// this one read, so they cannot disagree — which is the only thing the fixture actually needs.
+// Discovery throws rather than guessing: a live run against an unintended model would report a
+// pass that means nothing.
+const { id: MODEL_ID, provider: MODEL_PROVIDER, modelId: MODEL_ID_SHORT } = discoverDefaultModel();
 
 // --- Seed + registration constants ---
 const SEED_ID = "aaaa1111aaaa";

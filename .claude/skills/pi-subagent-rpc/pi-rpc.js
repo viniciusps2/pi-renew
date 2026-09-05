@@ -32,8 +32,9 @@
 // session unless some other process held a permanent writer open for no other reason. A
 // plain append-only file the supervisor polls has no such failure mode.
 //
-// Model validation (../pi-driver-common/model.js) happens before ANY of the above exists:
-// `pi` warns but proceeds on an unknown model id, so this script rejects an unqualified or
+// Model validation (../pi-driver-common/model.js) happens before ANY of the above exists, and
+// only for an EXPLICIT --model — with none given, no --model is passed to `pi` at all and it
+// picks its own default. `pi` warns but proceeds on an unknown model id, so this script rejects an unqualified or
 // uncatalogued id itself, before the run directory is created and before any `pi` process
 // is spawned.
 //
@@ -64,8 +65,10 @@
 //
 // Flags:
 //   --run-dir <dir>   The session's state directory (required on every verb).
-//   --model <id>      Fully-qualified "provider/model" (default: the shared pin in
-//                      ../pi-driver-common/model.js). Validated before anything is spawned.
+//   --model <id>      Fully-qualified "provider/model". OPTIONAL, and there is no default:
+//                      omit it and no --model reaches `pi`, which then uses the default model
+//                      from its own settings. Supplied, it is validated before anything is
+//                      spawned (`pi` only warns on an unknown id, so nobody else would catch it).
 //   --cwd <dir>       Working directory for the `pi` process (default: this process's cwd).
 //   --approve         Trust project-local files for this run (`pi -a`). OFF by default:
 //                      non-interactive modes never prompt for trust, so without this a
@@ -117,7 +120,7 @@ import {
   EXIT_SETTLED_WITH_TEXT,
   EXIT_SETTLED_NO_TEXT,
 } from '../pi-driver-common/exit-codes.js';
-import { resolveModelId, DEFAULT_MODEL_ID } from '../pi-driver-common/model.js';
+import { resolveModelId, readDefaultModelId } from '../pi-driver-common/model.js';
 import { foldEvents } from '../pi-driver-common/session.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -237,11 +240,14 @@ function cmdStart(argv) {
   const runDir = values['--run-dir'];
   if (!runDir) throw new UsageError('start', 'requires --run-dir <dir>');
 
-  // Model validation happens before the run directory exists and before any `pi` process is
-  // spawned — a rejected id leaves nothing behind to clean up. resolveModelId already
-  // throws with .exitCode set (EXIT_USAGE), so letting it propagate to main()'s catch is
-  // enough; no separate try/catch is needed here.
-  const resolved = resolveModelId(values['--model'] ?? DEFAULT_MODEL_ID);
+  // No --model means no --model: the supervisor omits the flag and `pi` resolves its own
+  // default, so this driver can never pin a model the user did not configure. An EXPLICIT
+  // --model is still validated first, because `pi` warns-but-proceeds on an unknown id —
+  // that check is the whole reason model.js exists, and it runs before the run directory
+  // exists so a rejected id leaves nothing behind. resolveModelId throws with .exitCode set
+  // (EXIT_USAGE), so letting it propagate to main()'s catch is enough.
+  const requestedModel = values['--model'];
+  const modelId = requestedModel === undefined ? null : resolveModelId(requestedModel).id;
 
   if (existsSync(path.join(runDir, 'meta.json'))) {
     throw new UsageError('start', `${runDir} already has a session (meta.json exists) — choose a fresh --run-dir`);
@@ -255,7 +261,8 @@ function cmdStart(argv) {
   writeFileSync(path.join(runDir, 'events.jsonl'), '');
   writeFileSync(path.join(runDir, 'stderr.log'), '');
 
-  const supervisorArgs = [SUPERVISOR_PATH, '--run-dir', path.resolve(runDir), '--model', resolved.id, '--cwd', cwd];
+  const supervisorArgs = [SUPERVISOR_PATH, '--run-dir', path.resolve(runDir), '--cwd', cwd];
+  if (modelId !== null) supervisorArgs.push('--model', modelId);
   if (values['--idle'] !== undefined) supervisorArgs.push('--idle', values['--idle']);
   if (values['--timeout'] !== undefined) supervisorArgs.push('--timeout', values['--timeout']);
   if (values['--approve']) supervisorArgs.push('--approve');

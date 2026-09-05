@@ -20,13 +20,21 @@ A full verification run of this repo, on `pi` **0.85.0**, Node 22:
 | Extension typecheck | `npx tsc --noEmit` | **clean** |
 | Live restart e2e (`new-session`) | `npx vitest run test/restart-e2e.test.ts` | **passed** — a real `pi --mode rpc`, a pre-seeded session, one `/pi-renew` restart, a second session file with `parentSession` = seed, the first turn back at the input floor, clean exit, no `extension_error` |
 | Live renewal-state | `npx vitest run test/renewal-state-live.test.ts` | **passed** |
-| Driver library | `cd skills/pi-driver-common && node --test` | **50 passed** |
+| Driver library | `cd .claude/skills/pi-driver-common && node --test` | **50 passed** |
 | tmux driver | `cd .claude/skills/pi-subagent-tmux && node --test` | **11 passed** |
 
-**Re-verified after the `delegate_*` → `renew_*` rename**, on `pi` **0.85.1**: the unit suite (263
-passed, 27 files), the typecheck, the driver library (50 passed) and the tmux driver (11 passed) are
-all still green, and a live `pi --mode json` session loads the extension and reports exactly
-`renew_session`, `renew_from_handover` and `set_renewal_context` with no `extension_error`.
+**Re-verified after the `delegate_*` → `renew_*` rename and the development-skill move**, on `pi`
+**0.85.1**: the unit suite (263 passed, 27 files), the typecheck, the driver library (**53** passed —
+three new `readDefaultModelId` cases) and the tmux driver (11 passed) are all green; a live
+`pi --mode json` session loads the extension and reports exactly `renew_session`,
+`renew_from_handover` and `set_renewal_context` with no `extension_error`; and **both live tests
+pass**, run against an isolated agent directory (see precondition 2 below).
+
+**No model is pinned anywhere.** The driver skills pass no `--model` unless a caller supplies one,
+so `pi` resolves the default from its own settings; the two live tests read the same
+`defaultProvider`/`defaultModel` pair (`test/default-model.ts`) so a seed session file names exactly
+the model the spawned `pi` will pick. Every previous hardcoded pin in this repo eventually went
+stale — twice — and each time the failure read as a restart defect rather than a model problem.
 
 Two environment preconditions, both of which produce a *silent* failure when unmet — the live tests
 report "extension did not load" and nothing says why:
@@ -39,6 +47,26 @@ report "extension did not load" and nothing says why:
    second copy — an older checkout, the pre-rename `pi-delegate` — registers the same three tool
    names, and `pi` refuses the loser with `Tool "renew_session" conflicts with …`. Whichever copy
    loses, the test's readiness gate then reports the extension as absent.
+
+   **This bites whenever `pi-renew` is installed from the checkout you are testing**, which is the
+   normal development setup. The fix that needs no change to the real environment is a throwaway
+   agent directory with `packages: []`:
+
+   ```bash
+   D=$(mktemp -d)
+   python3 - "$D" <<'EOF'
+   import json, os, sys, shutil
+   src = os.path.expanduser("~/.pi/agent")
+   s = json.load(open(f"{src}/settings.json")); s["packages"] = []
+   json.dump(s, open(f"{sys.argv[1]}/settings.json", "w"), indent=2)
+   for f in ("auth.json", "models.json", "models-store.json", "trust.json"):
+       shutil.copy(f"{src}/{f}", sys.argv[1])
+   EOF
+   PI_CODING_AGENT_DIR=$D npx vitest run test/restart-e2e.test.ts test/renewal-state-live.test.ts
+   ```
+
+   `auth.json` and `models.json` matter: without them the run reaches the model with no credentials
+   and fails as `usage.input: 0`, which looks nothing like a configuration problem.
 
 ## Outstanding
 
@@ -56,7 +84,7 @@ is outstanding.
 | Live run of the plain loop, `ask me between turns` | turn → handover → restart → turn; the fresh session's `usage.input` at the baseline floor; answering "yes" starts the next turn and increments the restart ordinal |
 | Live run that ends on its budget | A run whose work outlasts `max N turns` must stop **at** N, report the budget as spent rather than as an error, and hand back a handover the next run adopts. The budget is the only bound every run has, and it has never been exercised live |
 | Live run on a deliberately unclosable unit | The no-progress guard must fire within one turn and stop with a report naming the unit, with no commit for the failed unit. **This guard has never fired in anger** — see the recommendation in [`renew-loop.md`](renew-loop.md#how-a-run-ends) |
-| Live run in brief-and-review mode | Both halves of a unit across a restart, in each of the three runner lanes the mode falls through — `subagent` tool, `pi-subagent` skill, and this session |
+| Live run in brief-and-review mode | Both halves of a unit across a restart, in each of the two runner lanes the mode falls through — the `subagent` tool, and this session |
 | Final reconciliation of [`renew-loop.md`](renew-loop.md) | The banner is honest, and every example and the under-the-hood diagram are reconciled against `prompts/renew-loop.md`. What is left is folding in any troubleshooting entry the live runs surface — a close-out obligation on them |
 
 ### Workstream B — restart reliability
@@ -87,7 +115,7 @@ Open — all of it **driver-side**:
 
 | Item | State |
 |---|---|
-| Supervision rule: a restart with no settled continuation turn inside a bounded window is a distinct, reported failure | The pure verdict core exists and is unit-tested: `skills/pi-driver-common/supervision.js` (`success` / `no-continuation` / `already-processing` / `pending`, a bounded window, and the "already processing" classifier). **The live wiring is not built** — no driver yet detects a real restart, delimits the post-restart event slice, or emits the signal against a running session |
+| Supervision rule: a restart with no settled continuation turn inside a bounded window is a distinct, reported failure | The pure verdict core exists and is unit-tested: `.claude/skills/pi-driver-common/supervision.js` (`success` / `no-continuation` / `already-processing` / `pending`, a bounded window, and the "already processing" classifier). **The live wiring is not built** — no driver yet detects a real restart, delimits the post-restart event slice, or emits the signal against a running session |
 | Classify the "already processing" `extension_error` as a restart failure | Classifier written and unit-tested; not wired |
 | Bounded, non-blocking supervision with a stable outcome | Same |
 | e2e reproducing the failing shape: one send, no re-fire, loud-not-silent | Not started |

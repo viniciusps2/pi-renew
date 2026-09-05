@@ -111,8 +111,15 @@ EXIT=0
 ```
 
 So "no silent fallback" cannot be delegated to `pi` — a driver validates the model itself,
-before launch, and only accepts fully-qualified ids (`provider/model`, e.g.
-`llm-1/qwen3.8-27b` — never a bare id, never a glob).
+before launch, and only accepts fully-qualified ids (`provider/model` — never a bare id, never
+a glob).
+
+**This rule applies only to a model a caller named.** No driver pins a default of its own: given
+no `--model`, a driver passes no `--model`, and `pi` resolves the default from its own settings.
+There is nothing to validate in that case, and nothing that can go stale — which is the point.
+`model.js` exposes `readDefaultModelId()` for *reporting* what `pi` is expected to pick (it
+returns `null`, never a substitute, when it cannot tell); that value is written to `meta.json`
+and never passed as an argument.
 
 - The catalogue is `pi --list-models`, read with no search term (offline, ~1.5s here). Its
   output is a header line plus whitespace-aligned columns:

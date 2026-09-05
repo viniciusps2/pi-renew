@@ -163,7 +163,7 @@ Rewrite it at the end of every turn. It is written for a reader with no memory o
 Work:        <the task list path, or the goal in one line>
 Slug:        <the slug, fixed on turn 1>
 Mode:        <plain | brief-and-review>  ·  Turn: <n> of <budget>
-Runner:      <brief-and-review only: subagent tool | pi-subagent skill | this session>
+Runner:      <brief-and-review only: subagent tool | this session>
 Stop when:   <the stop condition, or "the task list is empty", or "the budget">
 Next:        <the one concrete thing the next turn does first>
 
@@ -304,15 +304,13 @@ in this order, and take the first that is actually there:
 
 1. a **`subagent` tool** (from `pi-subagents`) → run units with `agent: "worker"`, and a `reviewer`
    child is available as a second opinion on the diff;
-2. the **`pi-subagent` skill** (`/skill:pi-subagent`) → run each unit as a one-shot child process;
-3. **neither** → run the unit **in this same session**, from the brief, under the same restricted
+2. **none** → run the unit **in this same session**, from the brief, under the same restricted
    reading. The mode is not cancelled by the absence of a runner: the brief, the reviewer notes and
    the two-turn split are what it is for, and they all still happen. What you lose is the executor's
    context isolation, so keep the reading tight.
 
-Record which one you found in the handover (`Runner: subagent tool` / `pi-subagent skill` / `this
-session`) and name it in the turn's report, so a run that fell back is visible rather than
-mysterious.
+Record which one you found in the handover (`Runner: subagent tool` / `this session`) and name it
+in the turn's report, so a run that fell back is visible rather than mysterious.
 
 ### The analyse half
 
@@ -351,7 +349,6 @@ review's yardstick, not skill bookkeeping, so they get written either way:
 3. **Run the unit**, immediately, in the runner the handover's `Runner:` line names — no further
    reading, no re-deriving context from the task list or the source tree:
    - `subagent` tool → call it with `agent: "worker"` and the brief as the task;
-   - `pi-subagent` skill → launch the one-shot child asynchronously;
    - this session → implement it yourself, from the brief. The restricted reading is *not* relaxed
      here: it is what the restart bought. If the brief is not enough to implement from, that is a
      defect in the brief — record it in the handover and re-analyse rather than reading around it.
@@ -397,7 +394,7 @@ Degrade, and say which lane you took — the handover's `Notes` is the place.
 
 | Lane | Present when | Then | Otherwise |
 |---|---|---|---|
-| **child runner** | a `subagent` tool, or `/skill:pi-subagent` | brief-and-review looks for it first and records what it found; the plain loop uses it only if the request asks to delegate the work | do the turn's work in this session |
+| **child runner** | a `subagent` tool | brief-and-review looks for it first and records what it found; the plain loop uses it only if the request asks to delegate the work | do the turn's work in this session |
 | **brief / review skills** | `/skill:subagent-brief`, `/skill:subagent-review` | brief-and-review uses them | the outlines above |
 | **OpenSpec** | `openspec --version` answers — or `npx openspec --version`, for a project-local install — and the repo has an `openspec/` directory | `openspec show <change>` / `status --change <change>` to resolve the change; `validate <change> --strict` in the check when a unit touches the spec delta; `archive <change>` **only if the request asked**, after the stop condition is met, as its own commit | the task list is a plain markdown checklist and the spec files are ordinary files |
 
