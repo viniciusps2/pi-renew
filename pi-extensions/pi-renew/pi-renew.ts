@@ -327,7 +327,8 @@ ${nextStepsAction}`;
       // `new-session` request while a prior restart is still in flight for this session is a
       // no-op: it returns the stand-down result and never calls sendExtensionCommand. Only
       // the *first* request in a run reaches the dispatch below — this branch is what kills
-      // the D1 re-fire loop (docs/delegate-restart-streaming-throw.md §14).
+      // the D1 re-fire loop: an unqualified "restart is pending" with no in-flight state, which
+      // the model re-fired until the run aborted.
       //
       // The persisted in-flight store is keyed by the parent session id and lives under
       // `cwd`. Both are present on a live ExtensionContext (the `compact` branch relies on
