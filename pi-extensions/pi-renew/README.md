@@ -26,34 +26,33 @@ Four terms recur throughout this document:
 `send-shapes.ts`); copying `pi-renew.ts` alone no longer works, because it would leave behind the
 five relative imports it needs.
 
-The two `pi install` paths below are written relative to the repository root; run them from there, or
-substitute the path to this directory.
+### Normally: install the repository
 
-### From GitHub
-
-```bash
-pi install git:github.com/viniciusps2/pi-renew/pi-extensions/pi-renew
-```
-
-Installs without a checkout, writing the package entry into `~/.pi/agent/settings.json`. Use a local
-path instead if you intend to change the extension — `pi install` from a checkout tracks the working
-tree, so an edit takes effect on the next session start.
-
-### Global (all projects)
+Install the **repository root**, which carries the `pi` manifest and registers this extension
+alongside the `/loop` prompt and the skills it drives:
 
 ```bash
-pi install ./pi-extensions/pi-renew
+pi install git:github.com/viniciusps2/pi-renew
 ```
 
-Writes the package entry into `~/.pi/agent/settings.json`.
+See the [repo README](../../README.md#install) for the checkout, project-local and `install.mjs`
+variants. There is no git URL for this subdirectory on its own — `pi` reads
+`git:github.com/<user>/<repo>` and treats anything after the repo name as part of the repository
+path, so a subdirectory URL fails the clone.
 
-### Project-local
+### Extension only, from a checkout
+
+Take this path when you want the restart primitive **without** `/loop` and the skills. The paths are
+written relative to the repository root; run them from there, or substitute the path to this
+directory.
 
 ```bash
-pi install ./pi-extensions/pi-renew -l
+pi install ./pi-extensions/pi-renew        # all projects (~/.pi/agent/settings.json)
+pi install ./pi-extensions/pi-renew -l     # project-local (.pi/settings.json)
 ```
 
-Writes `.pi/settings.json`.
+This directory has its own `pi` manifest listing only `extensions`, so nothing else is registered.
+Do not combine it with a root install — the extension would load twice.
 
 ### Without installing
 

@@ -16,6 +16,23 @@
     "type": "git",
     "url": "git+https://github.com/viniciusps2/pi-renew.git"
   },
+  "homepage": "https://github.com/viniciusps2/pi-renew#readme",
+  "bugs": {
+    "url": "https://github.com/viniciusps2/pi-renew/issues"
+  },
+  "bin": {
+    "pi-renew": "install.mjs"
+  },
+  "files": [
+    "install.mjs",
+    "pi-extensions/pi-renew/*.ts",
+    "pi-extensions/pi-renew/package.json",
+    "pi-extensions/pi-renew/README.md",
+    "skills/**/*",
+    "prompts/**/*",
+    "docs/**/*",
+    "README.md"
+  ],
   "pi": {
     "extensions": [
       "./pi-extensions/pi-renew/pi-renew.ts"
@@ -30,5 +47,13 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
   }
 }

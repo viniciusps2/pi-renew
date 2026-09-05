@@ -19,8 +19,8 @@ PI=<this skill's directory>/pi-agent.sh       # run a sub-agent
 PIF=<this skill's directory>/pi-follow.sh     # watch one live
 ```
 
-Installed as this repo's README describes, that directory is
-`~/.pi/agent/skills/dev/pi-subagent/`; in a checkout it is `skills/pi-subagent/`.
+That directory is wherever the installed package lives: `skills/pi-subagent/` inside a checkout, or
+under `~/.pi/agent/git/github.com/viniciusps2/pi-renew/skills/pi-subagent/` for a `git:` install.
 
 Internals, recovery details and the reasoning behind the defaults: [README.md](README.md).
 

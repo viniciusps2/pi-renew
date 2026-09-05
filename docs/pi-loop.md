@@ -28,41 +28,49 @@ child runner serve callers that have nothing to do with this protocol.
 
 ## Setup
 
-One-time per machine, then per checkout. Assume you have cloned this repo and are standing in its
-root, so `$PWD` is the checkout you just made — the one path that moves from machine to machine. Each
-step below is either keyed off `$PWD` or lives once in `~/.pi/agent/` and is reused by every checkout.
+If you only want to *use* `/loop`, one command is the whole setup — see
+[Install](../README.md#install). Nothing below is required for that.
+
+```bash
+pi install git:github.com/viniciusps2/pi-renew
+```
+
+The rest of this section is for developing **on** this repo, where you want the installed copy to be
+your working tree. Assume you have cloned it and are standing in its root, so `$PWD` is that checkout.
 
 ```bash
 # 0. Be in the checkout:   cd <this-repo>          # so $PWD is the repo root
 
-# 1. Load the pi-renew extension from THIS checkout (see the repo README for `pi install`, and for
-#    installing straight from GitHub instead). This is the one path that follows the folder:
-pi install "$PWD/pi-extensions/pi-renew"
+# 1. Install the REPO ROOT — not pi-extensions/pi-renew. The root carries the `pi` manifest, so this
+#    one entry registers the extension, the /loop prompt and the whole skills/ tree together. A path
+#    install tracks your working tree, so edits are live with no reinstall:
+pi install "$PWD"
 #    …which writes the entry into ~/.pi/agent/settings.json:
-#    "packages": [ …, "<path to this checkout>/pi-extensions/pi-renew" ]
+#    "packages": [ …, "<path to this checkout>" ]
 
 # 2. (Once per machine) Turn on the high-context auto-restart; add model aliases if you like:
 #    cat ~/.pi/agent/pi-renew.json
 #    { "highContextReminder": { "enabled": true, "thresholdFraction": 0.85 } }
 
-# 3. Install the /loop template globally, keeping the file version-controlled in this repo:
-ln -sfn "$PWD/prompts/loop.md" ~/.pi/agent/prompts/loop.md
-
-# 4. Expose the skills the loop drives. Symlink the WHOLE skills/ tree as a single namespace so the
-#    skills stay siblings of one another: subagent-review reads ../subagent-brief/…, and pi-subagent
-#    reads ../pi-driver-common/… (a shared lib with no SKILL.md of its own). Linking individual
-#    skills instead would break those relative references. The namespace name is arbitrary (here:
-#    dev). The two development drivers are NOT in this tree — they live under .claude/skills/ so
-#    that pi never loads them:
-ln -sfn "$PWD/skills" ~/.pi/agent/skills/dev
-
-# 5. Trust this checkout. /loop itself does not need it, but this repo's own live tests do — they
+# 3. Trust this checkout. /loop itself does not need it, but this repo's own live tests do — they
 #    load the extension by an explicit -e path inside the checkout, and an untrusted project's
 #    resources are ignored silently. Run /trust once inside an interactive pi session here, or add
 #    the path to ~/.pi/agent/trust.json.
 ```
 
-`/loop` is installed globally, so it works in every repo with no trust gate — while the file itself stays
+**No symlinking into `~/.pi/agent/`.** An earlier version of this section had you install the inner
+`pi-extensions/pi-renew` directory and then link `prompts/loop.md` and `skills/` into `~/.pi/agent/`
+by hand. The manifest install replaces all of it. If you still have that setup, the two registrations
+stack — and a duplicate extension is exactly what the live tests refuse to run against. From a checkout, run
+`./install.mjs --check` to list the leftovers and `./install.mjs --migrate` to remove them.
+
+The manifest points `skills` at the **whole tree**, not at individual skills, and that matters: the
+skills are siblings of one another — `subagent-review` reads `../subagent-brief/…`, and `pi-subagent`
+reads `../pi-driver-common/…`, a shared library with no `SKILL.md` of its own. Registering skills one
+by one would break those relative references. The two development drivers are deliberately *not* in
+this tree — they live under `.claude/skills/`, so `pi` never loads them.
+
+`/loop` installs globally, so it works in every repo with no trust gate — while the file itself stays
 version-controlled in this repo. One loop serves every project; a project needing a different protocol adds
 its own template under a **different name** rather than overriding `loop`.
 
@@ -302,9 +310,10 @@ tried to send. When a run "succeeds" but nothing happened, look there first.
 
 **The fresh session ignored my loop and answered something else.**
 The delegate context was delivered but not expanded — the model received the literal text `/loop …`. Usually
-the global symlink at `~/.pi/agent/prompts/loop.md` is missing or broken, or the template was renamed after
-registration. Check `readlink -f ~/.pi/agent/prompts/loop.md`. Registration-time validation is meant to catch
-this at session start; if it fired, you will have seen an explicit rejection.
+`/loop` is not registered at all, or the template was renamed after registration. Check that `/help` lists
+`/loop`, and that `pi list` shows the pi-renew package; `./install.mjs --check` in a checkout reports the same thing plus
+any stale symlinks from the pre-manifest setup. Registration-time validation is meant to catch this at session
+start; if it fired, you will have seen an explicit rejection.
 
 **The loop restarted but repeated turn 1.**
 Check the provenance line at the top of the fresh session. If the reason is missing, the restart lost its

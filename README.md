@@ -31,22 +31,61 @@ serve callers with nothing to do with this protocol.
 
 ## Install
 
-**From GitHub — extension, skills and the `/loop` template, in one command:**
+One command, no symlinks:
 
 ```bash
 pi install git:github.com/viniciusps2/pi-renew
 ```
 
-That writes one entry into `~/.pi/agent/settings.json`. Add `-l` to install project-locally
-(`.pi/settings.json`) instead. To pin a ref: `pi install git:github.com/viniciusps2/pi-renew@v1.0.0`.
-To try it for a single run without installing: `pi -e git:github.com/viniciusps2/pi-renew`.
+That writes a single entry into `~/.pi/agent/settings.json`, and the `pi` manifest in
+[`package.json`](package.json) registers all three resource kinds from it:
+
+| Manifest field | What it registers |
+|---|---|
+| `extensions` | the restart tools and the `/pi-renew` command |
+| `prompts` | `/loop` |
+| `skills` | `subagent-brief`, `subagent-review`, `pi-subagent` — as one tree, so their relative references keep resolving |
+
+Nothing needs linking into `~/.pi/agent/prompts/` or `~/.pi/agent/skills/` by hand. Confirm with
+`/help` in a `pi` session: `/loop`, `/pi-renew` and the three `skill:` entries should all be there.
+
+Add `-l` to install project-locally (`.pi/settings.json`) instead. To pin a ref:
+`pi install git:github.com/viniciusps2/pi-renew@v1.0.0`. To try it for a single run without
+installing: `pi -e git:github.com/viniciusps2/pi-renew`.
 
 **From a checkout** — do this if you intend to change anything, since `pi install` from a path tracks
-your working tree:
+your working tree. Install the **repo root**, not `pi-extensions/pi-renew`: the inner directory is
+only the extension, and installing it gets you the tools without `/loop` or the skills.
 
 ```bash
 git clone https://github.com/viniciusps2/pi-renew
 pi install ./pi-renew
+```
+
+**Or use the wrapper**, [`install.mjs`](install.mjs), which picks the source for you, reports what is
+registered, and cleans up an older setup. It is the package's `bin`, so from a checkout:
+
+```bash
+./install.mjs            # install (this checkout, since it is one)
+./install.mjs --check    # report what is registered, change nothing
+./install.mjs --migrate  # install, then remove the pre-manifest symlink setup
+./install.mjs --remove   # uninstall
+```
+
+Once the package is on npm the same commands are `npx pi-renew …`, which installs from the registry
+rather than from a checkout. The wrapper only wraps `pi install`/`pi remove` — there is nothing it
+does that you cannot do by hand.
+
+**Upgrading from the manual setup.** Earlier versions of these docs had you install
+`pi-extensions/pi-renew` and then symlink `prompts/loop.md` and `skills/` into `~/.pi/agent/`. That
+still works, but combined with a root install it registers everything twice — and a duplicate
+extension breaks this repo's own live tests. `./install.mjs --check` lists any leftovers;
+`./install.mjs --migrate` removes them. By hand:
+
+```bash
+pi remove <path>/pi-extensions/pi-renew
+rm ~/.pi/agent/prompts/loop.md ~/.pi/agent/skills/dev   # only if they are symlinks you made
+pi install <path>
 ```
 
 **Turn on the automatic high-context restart** (off unless configured), in
@@ -71,8 +110,8 @@ follows a model switch with no config change. Keep it well clear of `1` — `pi`
 compaction at `contextWindow - reserveTokens`, and a reminder that fires too late has no room left to
 write a handover. `models` is optional and only powers `nextModel` aliases.
 
-Developing on this repo instead of installing it — symlinks, project trust, and why the skills tree is
-linked whole — is in [`docs/pi-loop.md`](docs/pi-loop.md#setup).
+Project trust — which `/loop` does not need, but this repo's own live tests do — is covered in
+[`docs/pi-loop.md`](docs/pi-loop.md#setup).
 
 ---
 
