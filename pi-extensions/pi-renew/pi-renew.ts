@@ -24,7 +24,14 @@ import {
   markRestartInflightDelivered,
   wasHandoffDelivered,
 } from "./restart-inflight";
-import { type DispatchRunner, resolveDispatchableRestart, resultDetails, renderRestartSignal } from "./restart-dispatch";
+import {
+  type DispatchRunner,
+  resolveDispatchableRestart,
+  resultDetails,
+  renderRestartSignal,
+  isReportOnlySession,
+  renderReportOnlyDirective,
+} from "./restart-dispatch";
 import {
   validateRenewalContext,
   parseRenewCommandArgs,
@@ -67,6 +74,17 @@ interface PendingRenewal {
   nextSteps: string;
 }
 
+/**
+ * Which high-context reminder this session gets.
+ *
+ * - `restart`     — the ordinary flow: write a handover, call `renew_from_handover`.
+ * - `stand-down`  — a restart is already in flight; do nothing and let it land.
+ * - `report-only` — this session can never restart (one-shot mode, or a launcher that
+ *                   declared it a delegate). Stop and hand a report back to the caller,
+ *                   who spawns a fresh session to continue. See `isReportOnlySession`.
+ */
+type ReminderVariant = "restart" | "stand-down" | "report-only";
+
 const PLANNING_TASK_PATH_PATTERN = /([^\s"'`]+\/planning\/[^\s"'`]*task[^\s"'`]*\.md)\b/gi;
 
 function getReminderMilestone(
@@ -88,9 +106,25 @@ function createHighContextReminder(
   tokens: number,
   thresholdTokens: number,
   contextWindow: number,
-  inFlight: boolean = false
+  variant: ReminderVariant = "restart"
 ): UserMessage {
-  const lines = inFlight
+  // D-RO1: `report-only` is checked FIRST, before `stand-down`. In a report-only
+  // session no restart can be in flight in any way that matters — nothing here can
+  // dispatch one — so an in-flight record read off disk (a stale file from an earlier
+  // run in the same cwd) must not divert the model into standing down and waiting for
+  // a restart that will never arrive. "This session cannot restart" outranks "a restart
+  // is already running".
+  const lines = variant === "report-only"
+    ? [
+        "System reminder: context usage is too high. Stop work and end this session now.",
+        `Current estimated context: ${tokens} tokens of ${contextWindow} (threshold: ${thresholdTokens}).`,
+        "",
+        renderReportOnlyDirective(),
+        "",
+        "Do not inspect one more thing, do not debug, do not run more tests, and do not make more code changes in this session.",
+        "Do not update task files, plan files, or any project files. Do not make any other change.",
+      ]
+    : variant === "stand-down"
     ? [
         `System reminder: context usage is too high. ${renderRestartSignal(true)}`,
         `Current estimated context: ${tokens} tokens of ${contextWindow} (threshold: ${thresholdTokens}).`,
@@ -276,7 +310,11 @@ export default function (pi: ExtensionAPI) {
     if (ctx.mode === "print" || ctx.mode === "json") {
       throw new Error(
         `renew_session requires a long-lived pi session and cannot run in --mode ${ctx.mode}. ` +
-          "Use interactive pi or --mode rpc. Nothing was compacted and no continuation was queued."
+          "Use interactive pi or --mode rpc. Nothing was compacted and no continuation was queued.\n\n" +
+          // D-RO4: the fallback for a runner that never fired `tool_call` (so the D-RO3
+          // block did not run). Without this the model gets a bare failure and retries;
+          // with it, the same directive the reminder gave lands on the tool result too.
+          renderReportOnlyDirective()
       );
     }
 
@@ -576,13 +614,23 @@ ${nextStepsAction}`;
 
     lastReminderMilestone = reminderMilestone;
 
-    // F144: bound call — an unbound getSessionId() threw here and the throw was swallowed
-    // by the runner's handler catch, so the high-context reminder was silently never
-    // delivered on a live session.
-    const inFlight =
-      typeof ctx.cwd === "string" && typeof ctx.sessionManager?.getSessionId === "function"
-        ? checkRestartInFlight(ctx.cwd, ctx.sessionManager.getSessionId()).blocked
-        : false;
+    // D-RO2: the report-only check comes before the in-flight read, and short-circuits
+    // it. checkRestartInFlight touches the disk; in a session that cannot restart at all
+    // the answer could not change the variant (report-only outranks stand-down, see
+    // D-RO1), so the read is pure cost.
+    let variant: ReminderVariant;
+    if (isReportOnlySession(ctx.mode, process.env)) {
+      variant = "report-only";
+    } else {
+      // F144: bound call — an unbound getSessionId() threw here and the throw was swallowed
+      // by the runner's handler catch, so the high-context reminder was silently never
+      // delivered on a live session.
+      const inFlight =
+        typeof ctx.cwd === "string" && typeof ctx.sessionManager?.getSessionId === "function"
+          ? checkRestartInFlight(ctx.cwd, ctx.sessionManager.getSessionId()).blocked
+          : false;
+      variant = inFlight ? "stand-down" : "restart";
+    }
 
     return {
       messages: [
@@ -591,9 +639,32 @@ ${nextStepsAction}`;
           contextUsage.tokens ?? reminderMilestone,
           thresholdTokens,
           contextUsage.contextWindow,
-          inFlight
+          variant
         ),
       ],
+    };
+  });
+
+  // D-RO3: the "don't give the tool" half of the report-only design. The extension
+  // CANNOT withhold a tool from the model's surface: `registerTool` runs in the
+  // activation function, which receives only `pi` (ExtensionAPI has no `mode`), and
+  // there is no unregister and no per-call enable predicate on ToolDefinition. Blocking
+  // the call is the closest reachable equivalent — and it is a better one than the
+  // `executeRenewal` mode guard it sits in front of, because a `reason` STEERS the model
+  // (stop, write the report) where a thrown tool error only tells it that something
+  // failed, which invites a retry. The guard stays as the last line of defence for a
+  // runner that does not fire `tool_call`.
+  //
+  // Deliberately NOT `terminate: true`: the model still has to emit the report, and
+  // terminating the batch would end the run on whatever text preceded the blocked call —
+  // which is exactly the empty-handed result this whole path exists to prevent.
+  const RENEWAL_TOOL_NAMES = new Set(["renew_session", "renew_from_handover"]);
+  pi.on("tool_call", async (event, ctx) => {
+    if (!RENEWAL_TOOL_NAMES.has(event.toolName)) return;
+    if (!isReportOnlySession(ctx.mode, process.env)) return;
+    return {
+      block: true,
+      reason: `${event.toolName} is not available in this session. ${renderReportOnlyDirective()}`,
     };
   });
 

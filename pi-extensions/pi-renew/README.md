@@ -120,6 +120,8 @@ Decisions, Next Steps, and Critical Context.
 
 > renew_session requires a long-lived pi session and cannot run in --mode json. Use interactive pi
 > or --mode rpc. Nothing was compacted and no continuation was queued.
+>
+> *(followed by the report-only directive — see [Report-only sessions](#report-only-sessions))*
 
 The reason is timing, not a blanket restriction on non-interactive use: `ctx.compact()` is
 fire-and-forget and does not even begin until the current agent run settles, and a `new-session` restart
@@ -339,6 +341,94 @@ The threshold is recomputed from the model's live context window on every evalua
 switching to a model with a different window changes the effective threshold with no configuration
 change needed. `renew_from_handover` is the tool that completes this flow — see
 [The three tools](#the-three-tools) above.
+
+### Report-only sessions
+
+Some sessions can never be renewed, and telling one to restart produces the worst outcome available:
+the agent stops implementing, writes a handover, calls a tool that cannot work, and — because the
+reminder repeats every `repeatEveryTokens` — is told again next turn, burning its remaining turns
+re-announcing a restart that will never happen. Its caller gets neither the work nor a report.
+
+In those sessions the extension sends a **different reminder**: stop, and end the turn with a report
+naming what is done, what is still missing, the single next action, the context to carry over, and
+the fact that the work is incomplete because the context window filled. It names no tool to call and
+no file to write — the report *is* the deliverable, read off the session's final answer by whoever
+spawned it, who then starts a fresh session from it.
+
+Both renewal tools are **blocked** in such a session, via a `tool_call` handler that returns
+`{ block: true, reason }` carrying the same directive the reminder gave. A block rather than an
+unregistration because the extension cannot withhold a tool: `registerTool` runs in the activation
+function, which receives only `pi`, and `ExtensionAPI` exposes no run mode. A block is also better
+than the mode guard it sits in front of — a `reason` steers the model, where a thrown tool error
+only reports a failure and invites a retry. The guard remains as the fallback for a runner that
+does not fire `tool_call`, and its message now carries the directive too. The block deliberately
+does **not** set `terminate`: the model still has to emit the report, and ending the batch early
+would hand the caller the empty result this path exists to prevent.
+
+A session is report-only when **either**:
+
+| Trigger | Why |
+|---|---|
+| `ctx.mode` is `print` or `json` | Automatic. A one-shot process is torn down when the run settles, which is exactly when `ctx.compact()` would begin — the same condition the `renew_session` mode guard enforces |
+| `PI_RENEW_REPORT_ONLY` is set to anything but `""`, `"0"` or `"false"` | Explicit. A worker driven over `--mode rpc` **is** long-lived, so a restart would technically succeed and still be wrong: the parent is blocking on a report, not on a renewed child |
+
+The falsy spellings are real opt-**outs** and override the mode, so a launcher can export the
+variable unconditionally and flip it per child. An *unset* variable is not an opt-out — it leaves
+the decision to the mode.
+
+Report-only outranks the in-flight stand-down variant, and short-circuits the disk read that
+detects it: nothing in such a session can dispatch a restart, so a stale in-flight record left in
+the same `cwd` by an earlier run must not divert the agent into waiting for one that will never
+arrive.
+
+### Where this came from
+
+An observed run, and the reason the design is shaped this way rather than as a config flag.
+
+A worker sub-agent — its own `pi` session with this extension loaded **in-process**, running a
+delegation brief that ended in a nine-section report contract — crossed the threshold 98 turns in.
+It got the ordinary restart reminder and obeyed it to the letter: stopped implementing, wrote a
+handover file, and went looking for `renew_from_handover`. It could not find a tool by that name it
+was willing to call, tried a prefixed variant, and reported back:
+
+> The complete, non-empty handover report is already on disk at `…/worker-4-5-handover.md`.
+> Steps 1–3 are done (implementation stopped; report written; no other project files touched).
+> Executing step 4 now by invoking the `renew_from_handover` tool directly with that exact path.
+
+Every phrase there is a readback of the reminder's own numbered steps. Three things went wrong at
+once, and all three are addressed above:
+
+1. **The reminder outranked the brief.** A report contract is ordinary brief text, read once at the
+   start. The reminder arrives mid-run as an injected user message phrased as *"do these steps
+   immediately, in order"*. The model took the newer, louder instruction — so the report the caller
+   was waiting on was never written.
+2. **"Implementation stopped" was the reminder's wording, not a finding.** The parent read it as a
+   blocker report and had to go read the tree to discover whether any code had landed. Hence the
+   report-only directive's insistence on the word INCOMPLETE and on naming the files actually
+   changed: a caller must be able to tell a stopped run from a finished one without a diff.
+3. **It repeated.** With `repeatEveryTokens` at its 1000 default, every subsequent turn past the
+   threshold re-issued the same instruction, so the worker kept re-announcing "steps 1–3 done,
+   executing step 4 now" and groping for the tool, until the run ended. A restart that cannot be
+   dispatched does not fail once — it fails every turn, and each failure costs the context that
+   triggered it.
+
+One loose end this change does **not** close: the worker groped for the tool name rather than
+calling it cleanly, which means the reminder may have been pointing at a tool that was not on that
+session's surface at all. A known cause is a duplicate extension install — `pi` refuses the losing
+copy's registrations with `Tool "renew_session" conflicts with …` (see
+[STATUS.md](../../docs/STATUS.md), precondition 2), while the `context` hook keeps firing and keeps
+naming tools that are not there. Report-only mode does not detect that; it only ensures the reminder
+stops naming a tool in the sessions where naming one is guaranteed to be wrong.
+
+The parent's own reading of the transcript is worth recording, because it is the shape this
+failure presents in:
+
+> Interesting. The worker child wrote a handover file and is now trying to call
+> `renew_from_handover` with that path. But wait — that's the child's tool. The child is trying to
+> restart its own session? That's odd.
+
+It was not odd, and it was not confusion on the child's part. It was the extension telling a
+session to do the one thing that session could not do, and then telling it again.
 
 ### Configuration
 

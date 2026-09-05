@@ -16,7 +16,7 @@ A full verification run of this repo, on `pi` **0.85.0**, Node 22:
 
 | Suite | How | Result |
 |---|---|---|
-| Extension unit tests | `cd pi-extensions/pi-renew && npx vitest run` (excluding the two live files) | **263 passed**, 27 files |
+| Extension unit tests | `cd pi-extensions/pi-renew && npx vitest run` (excluding the two live files) | **283 passed**, 28 files |
 | Extension typecheck | `npx tsc --noEmit` | **clean** |
 | Live restart e2e (`new-session`) | `npx vitest run test/restart-e2e.test.ts` | **passed** — a real `pi --mode rpc`, a pre-seeded session, one `/pi-renew` restart, a second session file with `parentSession` = seed, the first turn back at the input floor, clean exit, no `extension_error` |
 | Live renewal-state | `npx vitest run test/renewal-state-live.test.ts` | **passed** |
@@ -24,11 +24,24 @@ A full verification run of this repo, on `pi` **0.85.0**, Node 22:
 | tmux driver | `cd .claude/skills/pi-subagent-tmux && node --test` | **11 passed** |
 
 **Re-verified after the `delegate_*` → `renew_*` rename and the development-skill move**, on `pi`
-**0.85.1**: the unit suite (263 passed, 27 files), the typecheck, the driver library (**53** passed —
+**0.85.1**: the unit suite (263 passed, 27 files at the time — see the report-only note below), the
+typecheck, the driver library (**53** passed —
 three new `readDefaultModelId` cases) and the tmux driver (11 passed) are all green; a live
 `pi --mode json` session loads the extension and reports exactly `renew_session`,
 `renew_from_handover` and `set_renewal_context` with no `extension_error`; and **both live tests
 pass**, run against an isolated agent directory (see precondition 2 below).
+
+**Report-only sessions, added after the rename.** A session that cannot restart — `--mode print` /
+`--mode json`, or any session whose launcher sets `PI_RENEW_REPORT_ONLY` — now gets a reminder that
+asks for a report instead of a renewal, and both renewal tools are blocked in it. This came out of
+an observed sub-agent run that stopped implementing, wrote a handover addressed to a session that
+could never exist, and re-announced the same doomed restart every turn until it ran out; the full
+story is in [the extension README](../pi-extensions/pi-renew/README.md#where-this-came-from). The
+unit suite is **283 passed, 28 files** with the change in (20 new tests in
+`test/report-only-session.test.ts`), typecheck clean, no existing test modified. **Not yet covered
+by a live test:** every new assertion is a unit test against a mocked context, so the mode
+auto-detection has not been observed end-to-end in a real one-shot `pi` run. That is the first
+thing to prove before trusting it.
 
 **No model is pinned anywhere.** The driver skills pass no `--model` unless a caller supplies one,
 so `pi` resolves the default from its own settings; the two live tests read the same

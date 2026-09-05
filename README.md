@@ -119,6 +119,23 @@ restarts with a real new session, recording the outgoing one as `parentSession`.
 This is the safety net under everything below, and it works in any flow, with no configuration
 beyond that one JSON line.
 
+**In a session that cannot restart, the reminder asks for a report instead.** A one-shot run
+(`pi -p`, `--mode json`) is torn down the moment the turn settles, so the restart could never land
+— and a sub-agent's caller is waiting on an answer, not on a renewed child. There the extension
+sends a different reminder: stop, and end the turn with a report saying what is done, what is
+still missing, what to do next, and that the stop was caused by a full context window. Both
+renewal tools are blocked in that session, so the sub-agent cannot be dragged into a restart
+loop by the reminder it just received. The caller reads the report off the final answer and
+spawns a fresh session to carry on.
+
+One-shot modes are detected automatically. A worker driven over `--mode rpc` is long-lived and
+looks like an ordinary session, so its launcher declares it explicitly:
+
+```bash
+PI_RENEW_REPORT_ONLY=1 pi --mode rpc …     # report, never restart
+PI_RENEW_REPORT_ONLY=0 pi -p …             # opt back out; the mode no longer decides
+```
+
 ### 2. Ask for a renewal
 
 **One sentence, mid-session, whenever the context has served its purpose:**
