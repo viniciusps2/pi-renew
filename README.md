@@ -224,7 +224,8 @@ it, tick it, commit it, rewrite the handover, and call `renew_session` with reas
 and `strategy: "new-session"`. The fresh session receives the whole protocol again with your request
 inside it, reads the restart ordinal off the provenance line to know which turn it is in, reads the
 handover, and does the next unit. The conversation is thrown away every turn; the handover file is
-the only thing that survives.
+the only thing that survives. It lives in `.pi/renew-loop/`, which the first run creates with a
+`.gitignore` of `*`, so the run's state never lands in the commits the work produces.
 
 **Everything after `/renew-loop` is free text — there are no flags:**
 
@@ -234,6 +235,7 @@ the only thing that survives.
 | When to stop | `until the e2e suite is green` — optional |
 | How long to run | `max 20 turns` — optional, **the default budget is 10** |
 | When the handover is archived | `handover max 300 lines` — optional, **the default is 500 lines** |
+| Keep the handover in git | `commit the handover` — optional; `.pi/renew-loop/` ignores itself by default |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
 | No restarts at all | `do everything in this session, no context restart` |

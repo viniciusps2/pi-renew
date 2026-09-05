@@ -127,6 +127,7 @@ want, and the protocol translates it into its parameters.
 | How long to run | `max 20 turns` — **optional**; the default budget is **10** |
 | Where state lives | `handover .pi/renew-loop/add-auth/handover-add-auth.md` — **optional**; say nothing and the loop finds or creates one |
 | When state gets archived | `handover max 300 lines` — **optional**; the handover rotates at **500 lines** by default |
+| Keep state in git | `commit the handover` — **optional**; by default `.pi/renew-loop/` ignores itself |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
 | Don't restart at all | `do everything in this session, no context restart` |
@@ -166,12 +167,24 @@ of starting a parallel history beside it.
 brief-and-review mode the current unit's brief and notes sit beside it:
 
 ```
-.pi/renew-loop/add-auth/
-├── handover-add-auth.md        # what just happened, and where the loop is
-├── handover-add-auth-old-1.md  # history, once the handover outgrew 500 lines
-├── brief-3-2.md                # unit 3.2's brief          (brief-and-review only)
-└── review-3-2.md               # unit 3.2's reviewer notes (brief-and-review only)
+.pi/renew-loop/
+├── .gitignore                      # a single `*` — none of this is committed
+└── add-auth/
+    ├── handover-add-auth.md        # what just happened, and where the loop is
+    ├── handover-add-auth-old-1.md  # history, once the handover outgrew 500 lines
+    ├── brief-3-2.md                # unit 3.2's brief          (brief-and-review only)
+    └── review-3-2.md               # unit 3.2's reviewer notes (brief-and-review only)
 ```
+
+**None of it is committed.** The first run to create `.pi/renew-loop/` writes a `.gitignore` there
+holding a single `*`, which covers the subtree and the ignore file itself. The handover, its archives,
+the briefs, the reviewer notes and any transcribed task list are the run's private state — written for
+the next session, not for a reviewer — and keeping them out of the index means the commits a run
+produces are the work it did, without a file that churns on every turn sitting in each one. A handover
+adopted from an older run that *was* tracked is moved and then untracked (`git rm --cached`, the file
+stays on disk), because ignore rules never apply to what is already in the index. Say `commit the
+handover` in the request to keep the state in git instead, and a directory you name yourself is used
+as given — the loop adds nothing to a directory it did not create.
 
 The slug is the task list's own directory where that names the work (`openspec/changes/add-auth/tasks.md`
 → `add-auth`), otherwise the file's stem (`docs/add-auth-plan.md` → `add-auth-plan`); a directory that
@@ -543,6 +556,11 @@ request for the two-turn brief-and-review mode.
 The file listed units but had nothing to tick, and the exit test and the no-progress guard both read that
 file. The change is `- [ ]` on each unit line and nothing else, in its own commit before the first unit.
 Give it a list that already has checkboxes — an OpenSpec `tasks.md`, say — and it changes nothing.
+
+**The handover is not in any of the commits.**
+By design: `.pi/renew-loop/.gitignore` is a single `*`, so the run's state stays out of the index and
+the commits hold the work and the task-list tick. The file is on disk where the report line said it is.
+Say `commit the handover` in the request if you want it tracked.
 
 **A `handover-<slug>-old-1.md` appeared, and the handover got shorter.**
 That is rotation: the handover passed 500 lines, so the loop archived it under that name and rewrote a

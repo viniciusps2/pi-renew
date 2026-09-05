@@ -29,6 +29,7 @@ Map it onto the parameters below by intent — there are no flags.
 | `handover <path>` | where the handover lives |
 | nothing about a handover | Step 2 finds this work's own, or creates it |
 | `handover max N lines`, `rotate the handover at N lines` | when the handover is archived and rewritten — **default 500 lines** |
+| `commit the handover`, `track the handover` | keep the run's state in git — by default it is ignored |
 | `ask me between turns`, `check in each turn` | pause after each turn instead of restarting |
 | `one turn only`, `do one unit and stop` | a budget of 1 |
 | `no context restart`, `do everything in this session` | No-restart mode |
@@ -125,6 +126,19 @@ The canonical handover is `.pi/renew-loop/<slug>/handover-<slug>.md`. **Never cr
 collides with every other run in the same repo, and the collision is silent: the next session adopts
 a stranger's state and reports progress that belongs to someone else's work.
 
+**The state directory ignores itself.** The first time you create `.pi/renew-loop/` — or find it
+without one — write a `.gitignore` there whose only line is `*`. That covers the whole subtree and the
+`.gitignore` itself, so the handover, its archives, the briefs, the reviewer notes and any transcribed
+task list stay out of the index. They are this run's private state, written for the next session and
+for you: a reviewer reading the work's diff should not have to page past a file that churns on every
+turn, and a run whose state is committed makes every commit it produces noisier than the change it
+carries. Create the file, do not stage it, and never `git add -f` anything beneath it.
+
+The two exceptions: a directory the request named itself — you use the path as given and add nothing
+to a directory you did not create for this — and a request that asks for the state to be **tracked**
+(`commit the handover`), which means no `.gitignore`, and the handover goes into the turn's commit as
+below.
+
 Named in the request — including `/renew-loop continue from <path>` — → use that path and skip the
 search. Otherwise look in all of these, and do not stop at the first hit, because knowing whether
 there are two is the point:
@@ -145,7 +159,10 @@ whose subject you cannot confirm either way.
 
 - **Exactly one validates** → adopt it, and add the `Work:` line if it has none. If it sits at a
   legacy path, move it — with anything beside it this run wrote — to the canonical path in this same
-  turn (`git mv` where they are tracked), and say so in your first report line.
+  turn, and say so in your first report line. One already **tracked** in git needs untracking as well
+  (`git mv`, then `git rm --cached <new path>`, which leaves the file on disk, committed together):
+  ignore rules do not apply to what is already in the index, so a tracked handover keeps appearing in
+  every later diff until it is taken out of one.
 - **Several validate** → **stop and ask which.** Two live handovers for one piece of work is exactly
   the ambiguity this protocol never guesses at. Make the answer cheap: list them with their
   last-modified time and the turn each records, and recommend one.
@@ -199,8 +216,9 @@ So measure it at the end of every turn, once the rewrite is done. **Over 500 lin
 the request named — rotate it, in this same turn:
 
 1. **Archive the current file** as `handover-<slug>-old-<n>.md` beside it, where `n` is one higher than
-   the highest already there — `handover-add-auth-old-1.md`, then `-old-2.md` (`git mv` where it is
-   tracked). Never delete an archive, never write into one, never renumber the existing ones.
+   the highest already there — `handover-add-auth-old-1.md`, then `-old-2.md` (`git mv` only in a
+   tracked state directory). Never delete an archive, never write into one, never renumber the existing
+   ones.
 2. **Write a new handover** at the canonical path, in the shape above, holding only what the next
    sessions actually need:
    - the header block in full — it is the run's identity and bounds, and every turn re-reads it — plus
@@ -220,9 +238,11 @@ the request named — rotate it, in this same turn:
    and a turn that genuinely needs one can read it by name. Nothing is lost by rotating; the cost is all
    in *not* rotating.
 
-Rotation is bookkeeping, not the turn's work: it lands in the same commit as the turn's handover update,
-it never consumes a unit, and it is never a reason to stop. Say in your report line that you rotated and
-name the archive — a handover that shrank between turns should never look like state that went missing.
+Rotation is bookkeeping, not the turn's work: it never consumes a unit and is never a reason to stop.
+The archive is ignored exactly like the handover, so a plain `mv` finishes it — there is nothing to
+stage, and nothing to commit unless the request asked for the state to be tracked, where it rides along
+with that turn's handover update. Say in your report line that you rotated and name the archive — a
+handover that shrank between turns should never look like state that went missing.
 
 ### Making a task list tickable
 
@@ -259,8 +279,10 @@ Check it once, on the first turn of a run:
 4. **Close the unit** in the task list, where there is one — tick its checkbox. Nothing else does
    this, and the exit test and the no-progress guard both read it. With no task list, the handover's
    `## Open` section is what they read instead, so keep it honest.
-5. **Commit**, if the request asks for commits, with the task-list edit and the handover update in
-   the same commit; push only if the request asks for that too.
+5. **Commit**, if the request asks for commits: the turn's work and the task-list tick. The handover
+   and everything beside it are ignored, so they stay out of it — unless the request asked for the
+   state to be tracked, in which case the handover update goes in the same commit. Push only if the
+   request asks for that too.
 6. **Rewrite the handover** to the shape above, with this turn's number and a `Next:` line that the
    next session could act on cold — then rotate it if it has outgrown the threshold, as above.
 
