@@ -87,6 +87,10 @@ unit, ask again:
 > /loop continue from .pi/loop/handover.md
 ```
 
+The handover path is optional in both: `/loop implement openspec/changes/add-x` finds the handover that
+change already has — adopting its progress, tier, pending decisions and repairs — and creates one only if
+there is none. See [Where the handover lives](#where-the-handover-lives).
+
 ---
 
 ## Writing the request
@@ -96,8 +100,8 @@ want, and the protocol translates it into its parameters.
 
 | What you want | How you say it |
 |---|---|
-| Where the work is listed | `implement openspec/changes/add-x/tasks.md` |
-| Where state lives | `handover .pi/loop/handover.md` |
+| Where the work is listed | `implement openspec/changes/add-x/tasks.md` — or the change or plan directory holding it |
+| Where state lives | `handover .pi/loop/handover.md` — **optional**; say nothing and the loop finds or creates one |
 | Keep going by yourself | `continue automatically until all tasks are done` |
 | Check in between units | `ask me before each next unit` |
 | Don't restart at all | `do everything in this session, no context restart` |
@@ -106,6 +110,27 @@ want, and the protocol translates it into its parameters.
 
 The final report is **opt-in**: say nothing about one and the loop ends with a short completion
 statement instead. Its own last reply is the report — there is no separate file to go and read.
+
+### Where the handover lives
+
+Naming one is optional. Point the loop at a task list and say nothing about state, and it looks for the
+handover that task list already has before making a new one — so a second `/loop` at the same openspec
+change picks up the tier, the pending decisions, the repairs and the progress baseline the first one
+left, instead of starting a parallel history beside it.
+
+It searches `<task-list-dir>/handover.md`, then `.pi/loop/<slug>/handover.md` (slug from the change or
+plan directory — `openspec/changes/add-auth/tasks.md` → `add-auth`), then `.pi/loop/handover.md`, and
+takes the first candidate whose own `Task list:` line names **this** list. A handover belonging to a
+different run is skipped, never merged. Two live candidates for the same list is an ambiguity it will
+not guess at: it stops and asks which. Nothing found → it creates `.pi/loop/<slug>/handover.md`. Either
+way it tells you the path it resolved and whether it adopted or created it, in its first report line.
+
+The search is deliberately the same every cycle, because a restart replays your request verbatim — a
+discovery that could land somewhere else would hand the fresh session a different handover than the one
+the previous phase just wrote.
+
+Naming a path explicitly always wins and skips the search, which is what `/loop continue from
+.pi/loop/handover.md` does.
 
 Hard stops are not something you request — the protocol always stops rather than continuing when a unit
 escalates in review a second time, a child run fails, or a commit or push fails (see Automatic continuation
@@ -122,6 +147,13 @@ changes no design the spec fixed. Where it would, that is a decision and the loo
 
 ```
 /loop implement openspec/changes/add-auth/tasks.md, handover .pi/loop/handover.md
+```
+
+**The same thing, letting it find the handover.** It adopts the one this change already has, or
+creates it, and says which.
+
+```
+/loop implement openspec/changes/add-auth
 ```
 
 **Run until the list is empty, checking in between units.**
@@ -198,7 +230,10 @@ stop. Two independent checks run at the top of every analyse phase:
 - **exit test** — no open unit in the task list → report and stop. This is the intended ending.
 - **no-progress guard** — the task list is unchanged since the previous cycle → stop and say so. This catches
   the failure that actually happens: a unit the agent believes it finished but whose checkbox was never
-  ticked, and a review that keeps re-opening the same unit.
+  ticked, and a review that keeps re-opening the same unit. Resuming an existing handover is the one
+  exception, and only for one cycle: a run that stopped *because* it closed no unit — a blocker, a decision
+  you have since answered — is the case most worth resuming, so the loop records `Resumed:` and continues.
+  If that cycle also closes nothing, the guard fires normally.
 
 Automatic does not mean unsupervised judgement. The loop stops rather than guessing whenever a decision is
 due, and also stops on: a unit escalating in review twice, a failing child run, a failing commit or push, and

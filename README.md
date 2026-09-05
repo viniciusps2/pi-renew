@@ -158,9 +158,10 @@ at a time**:
 ```
 TURN 1  (fresh session)                          TURN 2  (fresh context)
 ├─ register "/loop <your request>" verbatim      ├─ read ONLY handover + brief
-├─ exit test · no-progress guard                 ├─ launch the implementation child, wait
-├─ pick ONE unit, size it (T0–T3)                ├─ THEN read reviewer notes, review the diff
-├─ write brief · reviewer notes · handover       ├─ minor → fix here · major → re-brief
+├─ adopt this task list's handover, or create    ├─ launch the implementation child, wait
+├─ exit test · no-progress guard                 ├─ THEN read reviewer notes, review the diff
+├─ pick ONE unit, size it (T0–T3)                ├─ minor → fix here · major → re-brief
+├─ write brief · reviewer notes · handover       ├─ blocked? → 🔧 repair, or stop
 └─ RESTART ─────────────────────────────────────▶├─ tick the task list · commit
    (or earlier, if context crosses the           └─ stop · ask · or restart into the next unit
     high-context threshold)
@@ -171,8 +172,8 @@ maps it onto its parameters:
 
 | What you want | How you say it |
 |---|---|
-| Where the work is listed | `implement openspec/changes/add-x/tasks.md` |
-| Where state lives | `handover .pi/loop/handover.md` |
+| Where the work is listed | `implement openspec/changes/add-x/tasks.md`, or the directory holding it |
+| Where state lives | `handover .pi/loop/handover.md` — optional; it finds or creates one otherwise |
 | Keep going by itself | `continue automatically until all tasks are done` |
 | Check in between units | `ask me before each next unit` |
 | Don't restart at all | `do everything in this session, no context restart` |

@@ -1,6 +1,6 @@
 ---
 description: Analyse one unit of work, restart the context, then execute and review it — repeat over a task list.
-argument-hint: <what to implement, where the handover lives, and any options>
+argument-hint: <what to implement, optionally where the handover lives, and any options>
 ---
 
 You are running the `/loop` protocol: drive a task list to completion one **unit** at a time —
@@ -20,7 +20,9 @@ Map it onto the parameters below by intent — there are no flags.
 | Signal in the request | Parameter it fixes |
 |---|---|
 | a path to a checklist, tasks file, or spec section | the task list to read and update |
+| a plan, an openspec change, or the directory holding one | the task list **inside** it — Step 1 resolves which |
 | `handover <path>` (e.g. `.pi/loop/handover.md`) | where handover, brief and reviewer notes live |
+| nothing about a handover | Step 1 finds the one this task list already has, or creates it |
 | nothing about continuing | continuation `stop` — the default |
 | "ask me…", "check in before…", "before each next unit" | continuation `ask` |
 | "continue automatically", "keep going", "until … done" | continuation `auto` |
@@ -30,7 +32,8 @@ Map it onto the parameters below by intent — there are no flags.
 | "summarize the results", "report at the end" | produce The final report |
 | nothing about a summary | no report — end with a short completion statement |
 
-Never guess a missing parameter. Step 1 says what to do instead.
+Never guess a missing parameter. Step 1 either resolves it by a rule that gives the same answer every
+cycle, or stops and asks.
 
 ## Step 0 — Which phase am I in?
 
@@ -69,9 +72,53 @@ Before reading the task list, the handover, or anything else:
   run both phases in this one session regardless of what the request asked for (see No-restart
   mode), and say so plainly in your final message.
 
-Then, if the request names no handover location or is empty, stop and ask for one. Do not invent a
-path or a task list. Registering first keeps even an under-specified request resumable while you
-wait.
+Registering first keeps even an under-specified request resumable while you resolve the rest of it.
+
+Then resolve **where the work is**, and only then **where the state lives**:
+
+- **The task list.** Named in the request → use it. A plan, an openspec change or a directory named
+  instead → resolve the list inside it by convention: `tasks.md`, then `TASKS.md`, `plan.md`,
+  `checklist.md`. Two of those present, or none, → stop and ask which. Nothing about work at all →
+  stop and ask. **Never invent a task list**; it is the one parameter with no safe default.
+- **The handover.** Named in the request — including `/loop continue from <path>` — → use it, and
+  skip the search. Otherwise find it, below.
+
+### Finding the handover
+
+Search the same way every cycle. A restart replays the registered request verbatim, so a discovery
+that is not deterministic hands the fresh session a different handover than the one the last phase
+wrote — which loses the tier, the pending decisions and the no-progress baseline in one step.
+
+Look in all three places — do not stop at the first hit, because knowing whether there are two is the
+point:
+
+1. `<task-list-dir>/handover.md`
+2. `.pi/loop/<slug>/handover.md` — `<slug>` from the task list's own directory where that names the
+   work (`openspec/changes/add-auth/tasks.md` → `add-auth`), otherwise from its filename
+3. `.pi/loop/handover.md`
+
+A candidate **validates only if it is about this task list**: its `Task list:` line names it, or —
+for one written before that line existed — its own text plainly refers to this list or to units from
+it. A handover naming a *different* list belongs to another run: skip it, never merge the two, and
+never adopt one whose subject you cannot confirm either way.
+
+- **Exactly one validates** → adopt it, and add the `Task list:` line if it has none.
+- **Several validate** → **stop and ask which.** Two live handovers for one task list is the
+  ambiguity Termination says never to guess at, and what would be lost by choosing wrong — progress,
+  pending decisions, repairs — is the whole reason to adopt one at all. Make the answer cheap: list
+  them with their last-modified time and the unit each names, and recommend one.
+- **None validates** → create `.pi/loop/<slug>/handover.md`, with its `Task list:` line first.
+
+**Adopting one that stopped mid-flight.** A handover saying `Phase: execute` belongs to a session
+that died before its unit closed. Adoption never re-enters the execute phase — only a provenance line
+does, and re-analysing is the recoverable direction — but do not re-analyse *over* an interrupted
+child's uncommitted diff. Discard that partial work first (a killed run is discarded and re-run from
+clean, never resumed), or stop and ask if you cannot tell which changes were its. Then analyse
+normally.
+
+Either way, **name the path in your first report line, and say whether you adopted or created it.**
+A discovered path the user did not expect costs one sentence to mention and a debugging session to
+find later.
 
 ## The analyse phase
 
@@ -89,8 +136,11 @@ wait.
 4. Write reviewer notes for the unit, applying `/skill:subagent-review`'s criteria to what the brief
    asks for, **at the depth the tier selects**. Name the checks you are deliberately not asking for,
    with the reason — a check skipped silently and a check forgotten look identical next cycle.
-5. Write or update the handover with: the unit you selected, its tier, the brief and reviewer-notes
-   paths, which units the task list has open right now (the no-progress guard has nothing to compare
+5. Write or update the handover with: a `Task list:` line naming the list this handover belongs to
+   (Step 1's search reads it back — without it, the next session cannot tell this handover from
+   another run's, and will create a second one beside it), the unit you selected, its tier, the
+   brief and reviewer-notes paths, which units the task list has open right now (the guard has
+   nothing to compare
    against next cycle otherwise), any unresolved `## Decisions pending` entries and any `## Repairs`
    entries carried forward, and exactly one `Phase:` line — `Phase: execute` once all three documents are complete,
    `Phase: analyse` if you are restarting before they are.
@@ -198,6 +248,15 @@ unattended `auto` run can.
   unit believed finished but never ticked, or a review that keeps re-opening the same unit. The
   handover is the source of truth for what happened. On a session's first analyse there is nothing
   to compare against, so it passes.
+
+  **A handover Step 1 adopted is a baseline, not a previous cycle — but only once.** When you
+  adopted one and the task list still matches what it recorded, read *why* the last cycle ended
+  before stopping. A recorded hard stop, blocker or pending decision is an explanation: write
+  `Resumed: <date> — after <that reason>` into the handover and continue, since the user resuming a
+  loop they unblocked is the intended path. No recorded reason — or a `Resumed:` line already there
+  with nothing closed since — means two consecutive cycles produced nothing: stop and report it.
+  Without this the guard fires on every resume of a run that stopped *because* it closed no unit,
+  which is the case most worth resuming.
 
 **Hard stops.** Stop under any continuation mode, reporting what you have and what blocks you, when:
 
