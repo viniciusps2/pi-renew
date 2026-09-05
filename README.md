@@ -43,7 +43,8 @@ pi install git:github.com/viniciusps2/pi-renew
 
 One entry in `~/.pi/agent/settings.json`; the `pi` manifest in [`package.json`](package.json)
 registers the extension, the `/renew-loop` prompt and the skills tree from it. Check with `/help` in
-a `pi` session — `/renew-loop`, `/pi-renew` and three `skill:` entries should be listed.
+a `pi` session — `/renew-loop`, `/pi-renew` and two `skill:` entries (`subagent-brief`,
+`subagent-review`) should be listed.
 
 Then turn on the automatic high-context renewal, which is **off unless configured**, in
 `~/.pi/agent/pi-renew.json`:
