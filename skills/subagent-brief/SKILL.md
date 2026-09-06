@@ -24,8 +24,14 @@ the detail.* Point at the task file and spec sections and require them to be rea
 restate their content — a restatement drifts and the sub-agent cannot tell which one wins.
 
 **Find the executor before you write the brief.** A brief is written *for* whoever runs it, so settle
-that first, in this order: a **`subagent` tool** (from `pi-subagents`) — the best case, a real child
-session per unit; else **this session**, continuing with the brief as its own instructions. The absence of a runner does not
+that first. Probe the **`subagent` tool** (from `pi-subagents`) by *calling* it, not by guessing — a
+`subagent`-* skill or an MCP / skills listing does not prove the tool is loaded:
+
+    subagent({ action: "list" })
+
+If it returns an agent roster, you have a runner: a real child session per unit, launched as
+`subagent({ agent: "worker", task: <the brief> })`. If the call is unavailable, fall back to **this
+session**, continuing with the brief as its own instructions. The absence of a runner does not
 cancel the brief: a cold executor and a same-session executor need the same decisions fixed, and the
 brief is what makes the result checkable by someone who was not there. Name the executor you found at
 the top of the brief, so the review knows what it is reviewing.

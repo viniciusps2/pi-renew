@@ -419,18 +419,25 @@ default because most work does not need this; this mode costs a restart and two 
 five units here. Everything else — registration, the handover, the bounds, the stop conditions,
 No-restart mode — is unchanged.
 
-**First, find the runner.** This mode delegates each unit, so before the first brief, look for one —
-in this order, and take the first that is actually there:
+**First, find the runner.** This mode delegates each unit, so before the first brief, decide whether
+a **`subagent` tool** (from `pi-subagents`) is available. Probe it by *calling* it, not by guessing —
+a `subagent`-* skill, or an entry in an MCP / skills listing, does not prove the tool is loaded, and
+a run that infers "no runner" from either of those silently loses the executor's context isolation:
 
-1. a **`subagent` tool** (from `pi-subagents`) → run units with `agent: "worker"`, and a `reviewer`
-   child is available as a second opinion on the diff;
-2. **none** → run the unit **in this same session**, from the brief, under the same restricted
-   reading. The mode is not cancelled by the absence of a runner: the brief, the reviewer notes and
-   the two-turn split are what it is for, and they all still happen. What you lose is the executor's
-   context isolation, so keep the reading tight.
+    subagent({ action: "list" })
+
+- **It returns an agent roster** (names such as `worker`, `reviewer`, …) → the **`subagent` tool** is
+  present. Run each unit with `subagent({ agent: "worker", task: <the brief> })`; a `reviewer` child
+  is available as a second opinion on the diff.
+- **The call is unavailable or errors** → **no runner**: run the unit **in this same session**, from
+  the brief, under the same restricted reading. The mode is not cancelled by the absence of a runner:
+  the brief, the reviewer notes and the two-turn split are what it is for, and they all still happen.
+  What you lose is the executor's context isolation, so keep the reading tight.
 
 Record which one you found in the handover (`Runner: subagent tool` / `this session`) and name it
-in the turn's report, so a run that fell back is visible rather than mysterious.
+in the turn's report, so a run that fell back is visible rather than mysterious. If a previous turn
+used the tool successfully and the probe now fails, re-probe before deciding — a runner that appears
+or disappears between turns is the only thing that changes this line.
 
 ### The analyse half
 
@@ -474,7 +481,7 @@ review's yardstick, not skill bookkeeping, so they get written either way:
 2. Read the brief.
 3. **Run the unit**, immediately, in the runner the handover's `Runner:` line names — no further
    reading, no re-deriving context from the task list or the source tree:
-   - `subagent` tool → call it with `agent: "worker"` and the brief as the task;
+   - `subagent` tool → call `subagent({ agent: "worker", task: <the brief> })` and wait for it in-turn;
    - this session → implement it yourself, from the brief. The restricted reading is *not* relaxed
      here: it is what the restart bought. If the brief is not enough to implement from, that is a
      defect in the brief — record it in the handover and re-analyse rather than reading around it.
