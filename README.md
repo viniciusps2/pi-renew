@@ -1,37 +1,48 @@
 # pi-renew
 
-**Renew a `pi` session instead of compacting it: hand the work over to a fresh context and keep
-going, unattended, until the task list is actually finished.**
+**Don't compact — renew.** Hand the work to a fresh session with a handover the agent wrote itself,
+and keep going, unattended, until the task list is actually finished.
 
 ---
 
 ## Why this exists
 
-Running a coding agent on a **local model with a small context window** is a different job from
-running one on a hosted model with 200k tokens to spare. You hit the ceiling constantly, and what
-happens at the ceiling decides whether the work gets done.
+A context window is a budget, and every long task spends it the same way: the transcript grows, the
+useful part of it does not.
 
-`pi`'s built-in auto-compaction is the default answer, and on a local model it has three problems:
+- **On a hosted model, that transcript is the bill.** Every turn re-sends everything before it, so
+  the cost of a conversation grows with the square of its length. On turn 60 you are paying, again,
+  for exploration you finished on turn 12.
+- **A full window also works worse, not just dearer.** Recall degrades as the window fills; the
+  constraint you stated forty messages ago now competes with everything said since.
+- **On a local model you simply run out.** A small window hits its ceiling constantly, and
+  compaction — another full pass over the whole transcript — runs on the same hardware that is
+  already the bottleneck.
 
-- **It is slow.** Compaction is another full model call over the whole transcript, on the same
-  hardware that is already the bottleneck.
-- **It loses the things that matter.** A generic summarizer keeps the shape of the conversation and
-  drops the specifics — the constraint you stated forty messages ago, the file that must not be
-  touched, the convention the last three commits followed.
-- **It stops.** Compaction finishes and the turn ends. Nobody continues the work. You come back
-  hours later to an idle session that summarized itself and waited.
+Auto-compaction is the usual answer, and it fails the same way everywhere it runs. A generic
+summarizer keeps the shape of the conversation and drops the specifics — the file that must not be
+touched, the convention the last three commits followed, the decision you already made twice. **And
+then it stops.** The turn ends, nobody continues, and you come back to an idle session that
+summarized itself and waited.
 
-What I wanted instead was a **handover**: the agent, which knows what it is doing, writes down what
-the next session needs — the goal, the decisions, the constraints, the next step — and then a fresh
+`pi-renew` replaces that with a **handover**. The agent — which knows what it is doing — writes down
+what the next session needs: the goal, the decisions, the constraints, the next step. A fresh
 session opens with exactly that and **carries on by itself**. No summarizer, no human in the loop,
-no stopping until the work is genuinely done.
+no stopping until the work is done.
 
-That is what `pi-renew` does. Two things:
+Two pieces:
 
 | | |
 |---|---|
-| **The extension** | replaces a live session with a clean one and carries a payload across the boundary — a handover the agent wrote, and optionally a whole workflow to replay. It can fire on the agent's request, or on its own when the context fills up. |
-| **`/renew-loop`** | a prompt template built on it: one turn of work per session, repeated — do the work, write the handover, restart clean — until a stop condition is met or the turn budget runs out. State lives in a file, so a run can be much longer than any one context window. |
+| **The extension** | replaces a live session with a clean one and carries a payload across the boundary — the handover, and optionally a whole workflow to replay. Fires on the agent's request, or on its own when the context fills up. |
+| **`/renew-loop`** | the reason to install it: one unit of work per session, repeated — work, hand over, restart clean — until the goal is met or the turn budget runs out. The state lives in a file, so **a run can be far longer than any single context window**, and every turn pays for a small fresh context instead of the whole run's transcript. |
+
+```
+$ cd <repo> && pi
+> /renew-loop work through tasks.md, commit each unit, max 20 turns
+```
+
+Twenty tasks, twenty clean contexts, one command, nobody watching.
 
 ---
 
@@ -46,7 +57,7 @@ registers the extension, the `/renew-loop` prompt and the skills tree from it. C
 a `pi` session — `/renew-loop`, `/pi-renew` and two `skill:` entries (`subagent-brief`,
 `subagent-review`) should be listed.
 
-Then turn on the automatic high-context renewal, which is **off unless configured**, in
+Then turn on automatic high-context renewal, which is **off unless configured**, in
 `~/.pi/agent/pi-renew.json`:
 
 ```json
@@ -93,11 +104,11 @@ In increasing order of ambition. Each one adds exactly one thing to the one befo
 
 ### 1. Let a full context renew itself
 
-**Nothing to learn. Install, enable the reminder above, and work normally.**
+**Nothing to learn. Install, enable the reminder above, work normally.**
 
 When the session crosses the threshold, the extension injects a reminder into the conversation:
 stop implementation work, write a complete handover to a markdown file of your own choosing, then
-call `renew_from_handover` with that path. The agent does exactly that, and:
+call `renew_from_handover` with that path. The agent does exactly that:
 
 ```
 > …47 messages of work…
@@ -110,26 +121,23 @@ call `renew_from_handover` with that path. The agent does exactly that, and:
 ```
 
 **Involved:** the extension only — no prompt template, no skills.
-**What it does:** the reminder repeats every `repeatEveryTokens` tokens past the threshold until
-the session is renewed or compacted.
-`renew_from_handover` refuses if the file is missing or empty — the handover *is* the payload, so
-there is no point restarting without one. On success it reads the file as the handover summary and
-restarts with a real new session, recording the outgoing one as `parentSession`.
+The reminder repeats every `repeatEveryTokens` tokens past the threshold until the session is
+renewed or compacted. `renew_from_handover` refuses a missing or empty file — the handover *is* the
+payload, so there is no point restarting without one — and on success reads the file as the handover
+summary, restarts with a real new session, and records the outgoing one as `parentSession`.
 
-This is the safety net under everything below, and it works in any flow, with no configuration
-beyond that one JSON line.
+This is the safety net under everything below. It works in any flow, for one line of JSON.
 
 **In a session that cannot restart, the reminder asks for a report instead.** A one-shot run
-(`pi -p`, `--mode json`) is torn down the moment the turn settles, so the restart could never land
-— and a sub-agent's caller is waiting on an answer, not on a renewed child. There the extension
-sends a different reminder: stop, and end the turn with a report saying what is done, what is
-still missing, what to do next, and that the stop was caused by a full context window. Both
-renewal tools are blocked in that session, so the sub-agent cannot be dragged into a restart
-loop by the reminder it just received. The caller reads the report off the final answer and
-spawns a fresh session to carry on.
+(`pi -p`, `--mode json`) is torn down the moment the turn settles, so the restart could never land —
+and a sub-agent's caller is waiting on an answer, not on a renewed child. There the extension sends
+a different reminder: stop, and end the turn with a report saying what is done, what is missing,
+what to do next, and that a full context window caused the stop. Both renewal tools are blocked in
+that session, so a sub-agent cannot be dragged into a restart loop by the reminder it just received.
+The caller reads the report off the final answer and spawns a fresh session to carry on.
 
-One-shot modes are detected automatically. A worker driven over `--mode rpc` is long-lived and
-looks like an ordinary session, so its launcher declares it explicitly:
+One-shot modes are detected automatically. A worker driven over `--mode rpc` is long-lived and looks
+like an ordinary session, so its launcher declares it explicitly:
 
 ```bash
 PI_RENEW_REPORT_ONLY=1 pi --mode rpc …     # report, never restart
@@ -179,7 +187,7 @@ When the plan is complete, call `renew_session` with the plan as `summary`,
 implementation runs in the fresh session, on the plan alone.
 ```
 
-And to make a workflow survive *every* restart, register it once with `set_renewal_context`; the
+To make a workflow survive *every* restart, register it once with `set_renewal_context`; the
 extension replays it verbatim into every session it restarts into:
 
 ```json
@@ -199,7 +207,7 @@ session, indefinitely" — which is exactly what the next two sections are.
 
 ### 3. Work through a list of tasks, unattended
 
-**The first real loop.** Point it at a checklist and let it run:
+**The main event.** Point it at a checklist and let it run:
 
 ```
 $ cd <repo> && pi
@@ -217,15 +225,16 @@ TURN n  (fresh context)
 **Involved:** the `/renew-loop` prompt template, plus `set_renewal_context` and `renew_session` from
 the extension. **No skills, no sub-agents, no spec tool** — this is the plain default.
 
-**What it does, step by step.** Turn 1 registers `/renew-loop <your request, verbatim>` as the
-renewal context, before reading anything, so a session lost before the first restart resumes by
-replaying that string. Then every turn: resolve the task list and the handover, do one unit, check
-it, tick it, commit it, rewrite the handover, and call `renew_session` with reason `renew-loop-turn`
-and `strategy: "new-session"`. The fresh session receives the whole protocol again with your request
-inside it, reads the restart ordinal off the provenance line to know which turn it is in, reads the
-handover, and does the next unit. The conversation is thrown away every turn; the handover file is
-the only thing that survives. It lives in `.pi/renew-loop/`, which the first run creates with a
-`.gitignore` of `*`, so the run's state never lands in the commits the work produces.
+Turn 1 registers `/renew-loop <your request, verbatim>` as the renewal context, before reading
+anything, so a session lost before the first restart resumes by replaying that string. Then every
+turn: resolve the task list and the handover, do one unit, check it, tick it, commit it, rewrite the
+handover, and call `renew_session`. The fresh session receives the whole protocol again with your
+request inside it, reads the restart ordinal off the provenance line to know which turn it is in,
+reads the handover, and does the next unit.
+
+The conversation is thrown away every turn; **the handover file is the only thing that survives.**
+It lives in `.pi/renew-loop/`, which the first run creates with a `.gitignore` of `*`, so the run's
+state never lands in the commits the work produces.
 
 **Everything after `/renew-loop` is free text — there are no flags:**
 
@@ -284,10 +293,10 @@ ANALYSE turn                                     EXECUTE turn (fresh context)
 | the runner | where the unit actually executes: the `subagent` tool from [`pi-subagents`](https://github.com/nicobailon/pi-subagents) if installed, else **this same session**, from the brief |
 | OpenSpec | `openspec show`/`status` to read the change, `openspec validate --strict` to gate spec-touching units, and `openspec archive` to **apply the change** once the list is empty |
 
-The executor works from the brief alone — which is the point, and also why the brief has to be
-good. Reach for this mode when the work has acceptance criteria you want verified, when each unit
-should land as its own reviewable commit, or when the run is unattended and nothing else will check
-the result. It costs a restart and two turns per unit, which is why it is not the default.
+The executor works from the brief alone — which is the point, and also why the brief has to be good.
+Reach for this mode when the work has acceptance criteria you want verified, when each unit should
+land as its own reviewable commit, or when the run is unattended and nothing else will check the
+result. It costs a restart and two turns per unit, which is why it is not the default.
 
 **Turn it on by asking:** *"apply and review"*, *"apply with review"*, *"apply with subagent
 review"*, *"brief and review each unit"*, *"delegate each unit"*.
