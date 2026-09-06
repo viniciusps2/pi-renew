@@ -45,17 +45,18 @@ node $PI_TMUX start --run-dir /tmp/probe -- --no-tools
 
 | Verb | Flags | Behaviour |
 |---|---|---|
-| `start` | `--run-dir <dir>` (required) `--model <id>` `--cwd <dir>` `--approve` `--idle <s>` `[-- <extra pi flags>]` | Validates the model, creates the run directory, creates the tmux session, prints the run dir, exits 0 immediately. |
+| `start` | `--run-dir <dir>` (required) `--model <id>` `--cwd <dir>` `--approve` `--idle <s>` `[-- <extra pi flags>]` | Validates `--model` if one is given, creates the run directory, creates the tmux session, prints the run dir, exits 0 immediately. |
 | `send` | `--run-dir <dir>` `<text>` | Delivers text to the TUI's composer and submits it. |
 | `settled` | `--run-dir <dir>` `[--wait <s>]` | Exit 0 if settled, 1 if not. `--wait` polls until settled, dead, or the wait elapses — see *Idle floor* below for what happens when `--wait` is omitted. |
 | `dead` | `--run-dir <dir>` | Exit 0 if the pane is dead (or no longer exists at all), 1 if alive. |
 | `read` | `--run-dir <dir>` `[--all]` | Prints the last assistant text (or every assistant text seen, with `--all`) to stdout. Exits 0/4/3 per the outcome (see below). |
 | `stop` | `--run-dir <dir>` `[--kill]` | Shuts the tmux session down; reports the result. |
 
-`--model` defaults to the shared pin in `../pi-driver-common/model.js`
-(`llm-1/qwen3.8-27b`) and is validated against `pi --list-models` before anything is created —
-see the contract doc for why a bare or uncatalogued id is rejected rather than silently
-substituted.
+`--model` is **optional and has no default**. Omit it and no `--model` reaches `pi`, which then
+uses the default model from its own settings (`defaultProvider`/`defaultModel` in
+`~/.pi/agent/settings.json`) — this driver never pins a model of its own. Supply one and it is
+validated against `pi --list-models` before anything is created; see the contract doc for why a
+bare or uncatalogued id is rejected rather than silently substituted.
 
 ## Exit codes
 

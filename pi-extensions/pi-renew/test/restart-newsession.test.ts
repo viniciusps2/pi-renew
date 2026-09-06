@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import extensionFactory from "../pi-renew";
-import { DELEGATE_STATE_VERSION, readDelegateState, writeDelegateState } from "../delegate-state";
+import { RENEWAL_STATE_VERSION, readRenewalState, writeRenewalState } from "../renewal-state";
 
 /**
  * Task 3.3 — the new-session restart strategy end to end: the tool's dispatch (decisions
@@ -33,7 +33,7 @@ function makeMockToolCtx() {
   };
 }
 
-function getDelegateToAgentTool(mockPi: any) {
+function getRenewSessionTool(mockPi: any) {
   return mockPi.registerTool.mock.calls[0][0];
 }
 
@@ -41,11 +41,11 @@ function getSessionBeforeCompactHandler(mockPi: any) {
   return mockPi.on.mock.calls.find((c: any) => c[0] === "session_before_compact")?.[1];
 }
 
-describe("delegate_to_agent tool dispatch, strategy: new-session (task 3.3, decisions 5-8, 17-19)", () => {
+describe("renew_session tool dispatch, strategy: new-session (task 3.3, decisions 5-8, 17-19)", () => {
   it("calls pi.sendUserMessage with expandPromptTemplates:true and no deliverAs key — exact equality", async () => {
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockToolCtx();
 
     await tool.execute(
@@ -68,7 +68,7 @@ describe("delegate_to_agent tool dispatch, strategy: new-session (task 3.3, deci
       { name: "pi-renew:2", source: "extension", sourceInfo: {} },
     ]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockToolCtx();
 
     await tool.execute(
@@ -89,7 +89,7 @@ describe("delegate_to_agent tool dispatch, strategy: new-session (task 3.3, deci
       { name: "pi-renew", source: "extension", sourceInfo: {} },
     ]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockToolCtx();
 
     await tool.execute(
@@ -106,7 +106,7 @@ describe("delegate_to_agent tool dispatch, strategy: new-session (task 3.3, deci
   it("ctx.compact is never called", async () => {
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockToolCtx();
 
     await tool.execute(
@@ -120,10 +120,10 @@ describe("delegate_to_agent tool dispatch, strategy: new-session (task 3.3, deci
     expect(mockCtx.compact).not.toHaveBeenCalled();
   });
 
-  it("pendingDelegation stays unset — observably, via session_before_compact returning undefined", async () => {
+  it("pendingRenewal stays unset — observably, via session_before_compact returning undefined", async () => {
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockToolCtx();
 
     await tool.execute(
@@ -193,9 +193,9 @@ function makeCommandCtx(cwd: string, sessionId: string, c2: any) {
 }
 
 function registerContextRecord(cwd: string, sessionId: string, restartCount = 0, extra: any = {}) {
-  writeDelegateState(cwd, sessionId, {
-    version: DELEGATE_STATE_VERSION,
-    context: "the delegate context payload",
+  writeRenewalState(cwd, sessionId, {
+    version: RENEWAL_STATE_VERSION,
+    context: "the renewal context payload",
     includeSummary: true,
     includeNextSteps: true,
     restartCount,
@@ -282,7 +282,7 @@ describe("/pi-renew command handler restart (task 3.3, decisions 6, 9-11, 20-21)
       await handler("reason-with-context", ctx);
 
       expect(c2.sendUserMessage).toHaveBeenCalledTimes(1);
-      expect(c2.sendUserMessage).toHaveBeenCalledWith("the delegate context payload", {
+      expect(c2.sendUserMessage).toHaveBeenCalledWith("the renewal context payload", {
         expandPromptTemplates: true,
         deliverAs: "followUp",
       });
@@ -338,7 +338,7 @@ describe("/pi-renew command handler restart (task 3.3, decisions 6, 9-11, 20-21)
 
       await handler("first restart reason", makeCommandCtx(cwd, sessionId, c2));
 
-      const after = readDelegateState(cwd, sessionId);
+      const after = readRenewalState(cwd, sessionId);
       expect(after!.restartCount).toBe(1);
       expect(after!.lastReason).toBe("first restart reason");
       expect(c2.sendMessage.mock.calls[0][0].content).toContain("restart #1");
@@ -355,7 +355,7 @@ describe("/pi-renew command handler restart (task 3.3, decisions 6, 9-11, 20-21)
 
       await handler("second restart reason", makeCommandCtx(cwd, sessionId, c2));
 
-      const after = readDelegateState(cwd, sessionId);
+      const after = readRenewalState(cwd, sessionId);
       expect(after!.restartCount).toBe(2);
       expect(after!.lastReason).toBe("second restart reason");
       expect(c2.sendMessage.mock.calls[0][0].content).toContain("restart #2");
@@ -373,7 +373,7 @@ describe("/pi-renew command handler restart (task 3.3, decisions 6, 9-11, 20-21)
       const ctx1 = makeCommandCtx(cwd, sessionId, makeReplacedSessionCtx([]));
       await handler("first restart reason", ctx1);
       expect(ctx1.newSession, "the first restart proceeds").toHaveBeenCalledTimes(1);
-      expect(readDelegateState(cwd, sessionId)!.restartCount).toBe(1);
+      expect(readRenewalState(cwd, sessionId)!.restartCount).toBe(1);
 
       // A *distinct* second restart in production happens in a *replacement* session (a new id),
       // which the guard never blocks. The only way to hit the SAME session id twice is a
@@ -383,7 +383,7 @@ describe("/pi-renew command handler restart (task 3.3, decisions 6, 9-11, 20-21)
       const ctx2 = makeCommandCtx(cwd, sessionId, makeReplacedSessionCtx([]));
       await handler("second restart reason", ctx2);
       expect(ctx2.newSession, "a blocked repeat must not re-dispatch the restart").not.toHaveBeenCalled();
-      expect(readDelegateState(cwd, sessionId)!.restartCount, "the stand-down must not increment the ordinal").toBe(1);
+      expect(readRenewalState(cwd, sessionId)!.restartCount, "the stand-down must not increment the ordinal").toBe(1);
       expect(ctx2.ui.notify, "the stand-down is reported, not swallowed").toHaveBeenCalled();
       expect(ctx2.ui.notify.mock.calls[0][0], "names the in-flight restart and says to stand down").toMatch(/already in progress/);
     });
@@ -419,7 +419,7 @@ describe("/pi-renew command handler restart (task 3.3, decisions 6, 9-11, 20-21)
       const { handler, ctx } = setup();
       await handler("unregistered reason", ctx);
 
-      expect(readDelegateState(cwd, sessionId)).toBeNull();
+      expect(readRenewalState(cwd, sessionId)).toBeNull();
     });
   });
 });

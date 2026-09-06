@@ -10,15 +10,12 @@ const FIXTURES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fi
 
 // The three session-file fixtures live under .claude/skills/pi-subagent-tmux/test/fixtures/ — one
 // copy, one source of truth — read across from the repo root rather than duplicated here. The tmux
-// driver is a development-only skill and deliberately sits outside the skills/ tree pi loads, so
-// this reaches up to the repo root instead of across a sibling directory.
+// driver is a sibling of this package under .claude/skills/, both being development-only and
+// deliberately outside the skills/ tree pi loads.
 const TMUX_FIXTURES_DIR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
   '..',
-  '..',
-  '.claude',
-  'skills',
   'pi-subagent-tmux',
   'test',
   'fixtures',

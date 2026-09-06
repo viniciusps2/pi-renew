@@ -38,7 +38,7 @@
  * *restart* landed. The session file is the artifact that records it (F127).
  *
  * The `compact` strategy is deliberately **not** exercised here: it is reachable only
- * through the `delegate_to_agent` tool (the model must emit the call) and runs
+ * through the `renew_session` tool (the model must emit the call) and runs
  * fire-and-forget after the run settles (F128), so it has no deterministic raw-RPC trigger.
  * It is covered by `test/restart-compact-payload.test.ts` and lands live in the full-loop
  * batches (7.1 / 7.2) — see D-H84.
@@ -65,6 +65,10 @@ import {
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
+import { discoverDefaultModel } from "./default-model";
+
+/** The model the seed names, read from `pi`'s settings so it matches what `pi` will pick. */
+const SEED_MODEL = discoverDefaultModel();
 
 // --- Portable paths (computed from this file's own location, never hardcoded to /data/...) ---
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
@@ -215,16 +219,14 @@ function writeSeed(sessionDir: string): string {
       id: mc,
       parentId: null,
       timestamp: ts,
-      provider: "llm-1",
-      // The seed names a model explicitly, so the resumed session is not at the mercy of whatever
-      // `defaultModel` the machine happens to hold. It must be a row the box actually ANSWERS on:
-      // this pin flipped to Qwen3.8-Flash-Next on 2026-08-28 because the 27b endpoint went silent
-      // (F131), and flipped back when the same control prompt answered in ~1s (F139, D-H87 —
-      // user instruction). If this row goes dead again the run fails as `restart artifact never
+      // Discovered from `pi`'s own settings, not pinned (see default-model.ts) — so the seed names
+      // exactly the model the spawned `pi` will resolve for itself. Every previous hardcoded pin
+      // here eventually went stale, and each time the run failed as `restart artifact never
       // landed: no new session file with a numeric assistant usage.input within the watchdog
-      // window` — a model problem, not a restart defect; check the control probe before
-      // touching the restart code.
-      modelId: "qwen3.8-27b",
+      // window` — which reads as a restart defect but is a model problem. If that error appears,
+      // check the endpoint the discovered model points at before touching the restart code.
+      provider: SEED_MODEL.provider,
+      modelId: SEED_MODEL.modelId,
     })
   );
   parent = mc;
@@ -296,7 +298,7 @@ function driveRestart(
 
     const events: any[] = [];
     let promptSent = false;
-    let sawDelegateCommand = false;
+    let sawRenewCommand = false;
     let finished = false;
     let artifactLanded = false;
     let artifactPoll: NodeJS.Timeout | undefined;
@@ -313,7 +315,7 @@ function driveRestart(
       else
         reject(
           new Error(
-            sawDelegateCommand
+            sawRenewCommand
               ? "restart artifact never landed: no new session file with a numeric assistant usage.input " +
                 "within the watchdog window (the on-disk restart artifact F133 makes ~4 s readable)"
               : "extension did not load: `pi-renew` was never listed by get_commands " +
@@ -386,7 +388,7 @@ function driveRestart(
           Array.isArray(event?.data?.commands) &&
           event.data.commands.some((c: any) => c?.name === "pi-renew")
         ) {
-          sawDelegateCommand = true;
+          sawRenewCommand = true;
           clearInterval(gate);
           // The ENTIRE message is the command (F126 / decision 2): no leading prose, or `pi`
           // answers it as chat instead of dispatching. Any reason string works; use a marker.

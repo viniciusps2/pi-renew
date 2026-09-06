@@ -182,7 +182,7 @@ describe("reapRestartInflight (task 1.2 housekeeping): removes only stale files"
 
     const stale = join(dir, "restart-inflight-stale.json");
     const fresh = join(dir, "restart-inflight-fresh.json");
-    const unrelated = join(dir, "delegate-unrelated.json");
+    const unrelated = join(dir, "renewal-unrelated.json");
     writeFileSync(stale, "{}\n", "utf-8");
     writeFileSync(fresh, "{}\n", "utf-8");
     writeFileSync(unrelated, "{}\n", "utf-8");

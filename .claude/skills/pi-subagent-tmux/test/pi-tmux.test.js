@@ -7,8 +7,9 @@
 // this repo that a freshly-created tmux session does NOT reliably inherit a client's custom
 // env vars, so anything the stub needs is passed as a CLI flag instead):
 //   - if invoked with --list-models (the model-validation round trip pi-tmux.js's start makes
-//     before creating anything), prints a one-row catalogue containing the default model pin
-//     and exits 0 — otherwise resolveModelId would reject every run in this suite.
+//     before creating anything, for an EXPLICIT --model only), prints a one-row catalogue and
+//     exits 0. The driver pins no model, so most tests here pass no --model at all and never
+//     reach this branch; the one that does passes an unqualified id to prove it is rejected.
 //   - otherwise, parses --session-dir/--session-id and, if also given a --stub-fixture-file
 //     (passed through the driver's own `-- <extra pi flags>` channel), copies that fixture's
 //     content to the exact path decision 7 predicts (<session-dir>/<ts>_<sessionId>.jsonl).

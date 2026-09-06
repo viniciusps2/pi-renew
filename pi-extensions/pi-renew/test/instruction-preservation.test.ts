@@ -24,8 +24,8 @@ describe("clean context produces minimal summary without embedded instructions",
       setModel: vi.fn().mockResolvedValue(true),
     };
     // O25: the compact branch (this file's only strategy) now reads/writes the
-    // delegate-state record, so makeMockCtx needs a real cwd — a temp dir, not
-    // process.cwd(), so a stray .pi/loop/delegate-*.json can never touch the developer's
+    // renewal-state record, so makeMockCtx needs a real cwd — a temp dir, not
+    // process.cwd(), so a stray .pi/renew/renewal-*.json can never touch the developer's
     // own real state (handover F37).
     cwd = mkdtempSync(join(tmpdir(), "instruction-preservation-mockctx-"));
   });
@@ -104,7 +104,7 @@ describe("clean context produces minimal summary without embedded instructions",
 
     expect(registeredEvents).not.toContain("input");
     expect(registeredEvents).not.toContain("before_agent_start");
-    // session_start IS registered now (delegate-state adoption/reaping); the teeth of this
+    // session_start IS registered now (renewal-state adoption/reaping); the teeth of this
     // test are the two assertions below, which prove that handler injects nothing.
     expect(registeredEvents).toContain("session_start");
 

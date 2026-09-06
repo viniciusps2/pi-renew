@@ -1,7 +1,7 @@
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 
 /**
- * Pure logic for delegate-context registration: validating a leading slash
+ * Pure logic for renewal-context registration: validating a leading slash
  * command against the runtime's resolvable commands, and parsing the
  * `/pi-renew` restart command's flags. Kept out of `pi-renew.ts`
  * because both functions are independently testable and have nothing to do
@@ -10,7 +10,7 @@ import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
  * Non-obvious fact: validation must happen at registration time, not at
  * delivery time. `AgentSession.prompt()`'s expansion path
  * (`_expandSkillCommand`, `expandPromptTemplate`) silently returns an
- * unresolved name's text unchanged rather than failing, so a delegate
+ * unresolved name's text unchanged rather than failing, so a renewal
  * context whose slash command cannot resolve would otherwise be delivered
  * to the model as literal prose, every restart, with no error anywhere.
  */
@@ -35,7 +35,7 @@ export function isPiRenewRestartCommandName(name: string): boolean {
 }
 
 /**
- * Rejects a delegate context whose leading slash command does not resolve
+ * Rejects a renewal context whose leading slash command does not resolve
  * against `commands` (as returned by `pi.getCommands()`), or that resolves to
  * this extension's own restart command. An empty (after trimming) context is
  * also rejected. A context that does not start with `/` is not a command at
@@ -45,10 +45,10 @@ export function isPiRenewRestartCommandName(name: string): boolean {
  * itself is never modified here — trimming is used only to decide whether
  * it is empty or a command.
  */
-export function validateDelegateContext(context: string, commands: SlashCommandInfo[]): void {
+export function validateRenewalContext(context: string, commands: SlashCommandInfo[]): void {
   const trimmed = context.trim();
   if (trimmed === "") {
-    throw new Error("Delegate context not registered: the context is empty.");
+    throw new Error("Renewal context not registered: the context is empty.");
   }
   if (!trimmed.startsWith("/")) return;
 
@@ -71,14 +71,14 @@ export function validateDelegateContext(context: string, commands: SlashCommandI
   // skill is a different, ordinary command and stays valid.
   if (resolved && resolved.source === "extension" && isPiRenewRestartCommandName(resolved.name)) {
     throw new Error(
-      `Delegate context not registered: /${token} is this extension's own restart command, so replaying it would restart forever. Register the work you want replayed, not the restart itself.`
+      `Renewal context not registered: /${token} is this extension's own restart command, so replaying it would restart forever. Register the work you want replayed, not the restart itself.`
     );
   }
 
   if (resolved) return;
 
   throw new Error(
-    `Delegate context not registered: /${token} does not resolve to any extension command, prompt template or skill. Closest matches: ${closestMatches(token, commands)}.`
+    `Renewal context not registered: /${token} does not resolve to any extension command, prompt template or skill. Closest matches: ${closestMatches(token, commands)}.`
   );
 }
 
@@ -142,7 +142,7 @@ function commonPrefixLength(a: string, b: string): number {
  * internal spacing and trailing content are preserved untouched, because
  * `rest` becomes the opaque reason string passed through to the restart flow.
  */
-export function parseDelegateCommandArgs(args: string): { afterTurn: boolean; rest: string } {
+export function parseRenewCommandArgs(args: string): { afterTurn: boolean; rest: string } {
   let afterTurn = false;
   let index = 0;
 

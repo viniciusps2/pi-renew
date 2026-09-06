@@ -4,21 +4,21 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import extensionFactory from "../pi-renew";
 import {
-  DELEGATE_STATE_VERSION,
-  getDelegateStatePath,
-  readDelegateState,
-  writeDelegateState,
-} from "../delegate-state";
+  RENEWAL_STATE_VERSION,
+  getRenewalStatePath,
+  readRenewalState,
+  writeRenewalState,
+} from "../renewal-state";
 
 /**
- * Task 2.2 — registering a delegate context via the `set_delegate_context`
+ * Task 2.2 — registering a renewal context via the `set_renewal_context`
  * tool. This file selects the tool by name (not by `registerTool` call
  * index): it is a new file, unaffected by the existing suite's index-based
  * assertions, and selecting by name is more robust regardless.
  */
-function getSetDelegateContextTool(mockPi: any) {
+function getSetRenewalContextTool(mockPi: any) {
   const call = mockPi.registerTool.mock.calls.find(
-    (c: any) => c[0].name === "set_delegate_context"
+    (c: any) => c[0].name === "set_renewal_context"
   );
   return call?.[0];
 }
@@ -38,7 +38,7 @@ function makeCtx(cwd: string, sessionId: string) {
   return { cwd, sessionManager: { getSessionId: () => sessionId } };
 }
 
-describe("set_delegate_context: registration (task 2.2)", () => {
+describe("set_renewal_context: registration (task 2.2)", () => {
   let cwd: string;
 
   beforeEach(() => {
@@ -53,17 +53,17 @@ describe("set_delegate_context: registration (task 2.2)", () => {
   // index rather than by name, so the two pre-existing tools must keep indices 0 and 1.
   // Asserted here explicitly: without it, inserting a tool earlier fails ~20 assertions
   // across five files with confusing errors instead of one that names the constraint.
-  it("registers set_delegate_context third, leaving delegate_to_agent at index 0 and delegate_context_high at index 1", () => {
+  it("registers set_renewal_context third, leaving renew_session at index 0 and renew_from_handover at index 1", () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
 
     const names = mockPi.registerTool.mock.calls.map((c: any) => c[0].name);
     expect(names).toEqual([
-      "delegate_to_agent",
-      "delegate_context_high",
-      "set_delegate_context",
+      "renew_session",
+      "renew_from_handover",
+      "set_renewal_context",
     ]);
-    expect(mockPi.registerTool.mock.calls[2][0].label).toBe("Set Delegate Context");
+    expect(mockPi.registerTool.mock.calls[2][0].label).toBe("Set Renewal Context");
   });
 
   it("stores the context verbatim, byte-for-byte, including leading/trailing whitespace and interior newlines", async () => {
@@ -73,17 +73,17 @@ describe("set_delegate_context: registration (task 2.2)", () => {
     const context = "  \n/loop implement tasks.md\n  trailing  \n";
     const mockPi = makeMockPi([{ name: "loop", source: "prompt", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getSetDelegateContextTool(mockPi);
+    const tool = getSetRenewalContextTool(mockPi);
 
     await tool.execute("call-1", { context }, undefined, undefined, makeCtx(cwd, "session-a"));
 
-    expect(readDelegateState(cwd, "session-a")!.context).toBe(context);
+    expect(readRenewalState(cwd, "session-a")!.context).toBe(context);
   });
 
   it("defaults omitted toggles to true, and honours explicit false independently per toggle", async () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
-    const tool = getSetDelegateContextTool(mockPi);
+    const tool = getSetRenewalContextTool(mockPi);
 
     await tool.execute(
       "call-1",
@@ -92,7 +92,7 @@ describe("set_delegate_context: registration (task 2.2)", () => {
       undefined,
       makeCtx(cwd, "session-defaults")
     );
-    expect(readDelegateState(cwd, "session-defaults")).toMatchObject({
+    expect(readRenewalState(cwd, "session-defaults")).toMatchObject({
       includeSummary: true,
       includeNextSteps: true,
     });
@@ -106,7 +106,7 @@ describe("set_delegate_context: registration (task 2.2)", () => {
       undefined,
       makeCtx(cwd, "session-mixed")
     );
-    expect(readDelegateState(cwd, "session-mixed")).toMatchObject({
+    expect(readRenewalState(cwd, "session-mixed")).toMatchObject({
       includeSummary: false,
       includeNextSteps: true,
     });
@@ -115,30 +115,30 @@ describe("set_delegate_context: registration (task 2.2)", () => {
   it("resets restartCount to 0 on registration, including when re-registering over a non-zero value", async () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
-    const tool = getSetDelegateContextTool(mockPi);
+    const tool = getSetRenewalContextTool(mockPi);
     const ctx = makeCtx(cwd, "session-restart");
 
     await tool.execute("call-1", { context: "first" }, undefined, undefined, ctx);
-    expect(readDelegateState(cwd, "session-restart")!.restartCount).toBe(0);
+    expect(readRenewalState(cwd, "session-restart")!.restartCount).toBe(0);
 
-    writeDelegateState(cwd, "session-restart", {
-      version: DELEGATE_STATE_VERSION,
+    writeRenewalState(cwd, "session-restart", {
+      version: RENEWAL_STATE_VERSION,
       context: "first",
       includeSummary: true,
       includeNextSteps: true,
       restartCount: 7,
       registeredAt: "2026-08-08T19:00:00.000Z",
     });
-    expect(readDelegateState(cwd, "session-restart")!.restartCount).toBe(7);
+    expect(readRenewalState(cwd, "session-restart")!.restartCount).toBe(7);
 
     await tool.execute("call-2", { context: "second" }, undefined, undefined, ctx);
-    expect(readDelegateState(cwd, "session-restart")!.restartCount).toBe(0);
+    expect(readRenewalState(cwd, "session-restart")!.restartCount).toBe(0);
   });
 
   it("registeredAt parses as a valid ISO-8601 date", async () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
-    const tool = getSetDelegateContextTool(mockPi);
+    const tool = getSetRenewalContextTool(mockPi);
 
     await tool.execute(
       "call-1",
@@ -147,14 +147,14 @@ describe("set_delegate_context: registration (task 2.2)", () => {
       undefined,
       makeCtx(cwd, "session-date")
     );
-    const state = readDelegateState(cwd, "session-date");
+    const state = readRenewalState(cwd, "session-date");
     expect(Number.isNaN(Date.parse(state!.registeredAt))).toBe(false);
   });
 
   it("does not parse the context's words: 'no summary' and 'skip next steps' leave both toggles true", async () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
-    const tool = getSetDelegateContextTool(mockPi);
+    const tool = getSetRenewalContextTool(mockPi);
 
     await tool.execute(
       "call-1",
@@ -163,7 +163,7 @@ describe("set_delegate_context: registration (task 2.2)", () => {
       undefined,
       makeCtx(cwd, "session-prose")
     );
-    const state = readDelegateState(cwd, "session-prose");
+    const state = readRenewalState(cwd, "session-prose");
     expect(state!.includeSummary).toBe(true);
     expect(state!.includeNextSteps).toBe(true);
   });
@@ -171,7 +171,7 @@ describe("set_delegate_context: registration (task 2.2)", () => {
   it("keeps two session ids in one cwd fully independent: neither read shows the other's context", async () => {
     const mockPiA = makeMockPi();
     extensionFactory(mockPiA);
-    await getSetDelegateContextTool(mockPiA).execute(
+    await getSetRenewalContextTool(mockPiA).execute(
       "call-1",
       { context: "context for A" },
       undefined,
@@ -181,7 +181,7 @@ describe("set_delegate_context: registration (task 2.2)", () => {
 
     const mockPiB = makeMockPi();
     extensionFactory(mockPiB);
-    await getSetDelegateContextTool(mockPiB).execute(
+    await getSetRenewalContextTool(mockPiB).execute(
       "call-1",
       { context: "context for B" },
       undefined,
@@ -189,8 +189,8 @@ describe("set_delegate_context: registration (task 2.2)", () => {
       makeCtx(cwd, "session-y")
     );
 
-    expect(readDelegateState(cwd, "session-x")!.context).toBe("context for A");
-    expect(readDelegateState(cwd, "session-y")!.context).toBe("context for B");
-    expect(getDelegateStatePath(cwd, "session-x")).not.toBe(getDelegateStatePath(cwd, "session-y"));
+    expect(readRenewalState(cwd, "session-x")!.context).toBe("context for A");
+    expect(readRenewalState(cwd, "session-y")!.context).toBe("context for B");
+    expect(getRenewalStatePath(cwd, "session-x")).not.toBe(getRenewalStatePath(cwd, "session-y"));
   });
 });

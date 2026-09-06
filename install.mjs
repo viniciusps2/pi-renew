@@ -29,7 +29,7 @@ const has = (...names) => names.some((n) => args.includes(n));
 
 if (has("--help", "-h")) {
   console.log(`
-pi-renew - context-restart primitive for pi, plus the /renew-loop protocol and its skills
+pi-renew - session renewal for pi, plus the /renew-loop protocol and its skills
 
 Usage:
   install.mjs              Install (uses this checkout if run from one, else the remote)
@@ -38,15 +38,11 @@ Usage:
   install.mjs --remove     Uninstall
   install.mjs --check      Report what is installed, change nothing
 
-One install registers all three resource kinds from the package manifest:
-  extension  ->  the delegate_to_agent tools and the /pi-renew command
+One install registers everything from the package manifest:
+  extension  ->  renew_session, renew_from_handover, set_renewal_context, /pi-renew
   prompts    ->  /renew-loop
-  skills     ->  subagent-brief, subagent-review, pi-subagent (+ the pi-driver-common library)
+  skills     ->  subagent-brief, subagent-review,
                  used only by /renew-loop's opt-in brief-and-review mode
-
-Optional companions the loop uses when they are installed, and does without when they are not:
-  pi install npm:pi-subagents            child agents for brief-and-review mode
-  npm install -g @fission-ai/openspec    spec-driven changes and \`openspec archive\`
 `);
   process.exit(0);
 }
@@ -233,10 +229,17 @@ if (has("--migrate")) {
 }
 
 console.log(`
-pi-renew installed. In a pi session:
-  /renew-loop <what to do>  run the loop: one turn per session, 10 turns unless you say otherwise
-  /pi-renew                 inspect and control the restart primitive
+pi-renew installed.
 
-Optional — turn on the automatic high-context restart in ${join(agentDir, "pi-renew.json")}:
+Next: turn on the automatic high-context renewal (off unless configured) in
+${join(agentDir, "pi-renew.json")}
   { "highContextReminder": { "enabled": true, "thresholdFraction": 0.85 } }
+
+Then, in a pi session:
+  /renew-loop <what to do>   one turn per session, 10 turns unless you say otherwise
+  /pi-renew <reason>         restart this session by hand
+
+Optional companions the loop picks up when present, and does without when not:
+  pi install npm:pi-subagents           child agents for brief-and-review mode
+  npm install -g @fission-ai/openspec   spec-driven changes and \`openspec archive\`
 `);

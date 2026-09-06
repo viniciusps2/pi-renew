@@ -4,7 +4,7 @@ import { assembleRestartPayload } from "../restart-payload";
 /**
  * Task 3.1 — restart payload assembly: section ordering, toggle gating,
  * absence rules, whitespace trimming, and the D-H7 property that the
- * delegate context never leaks into `prelude`. Provenance's own format is
+ * renewal context never leaks into `prelude`. Provenance's own format is
  * covered in `provenance.test.ts`, not here.
  *
  * Fixture strings below are chosen mutually distinct and individually

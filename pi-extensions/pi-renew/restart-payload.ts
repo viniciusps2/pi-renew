@@ -2,7 +2,7 @@
  * Pure assembly of the restart payload: the provenance line every restart
  * opens with, and the ordered prelude (provenance, then the agent-supplied
  * summary and next steps, each gated by its toggle) that accompanies the
- * separately-delivered delegate context.
+ * separately-delivered renewal context.
  *
  * Non-obvious fact: the payload is deliberately NOT one string.
  * `assembleRestartPayload` returns `{ prelude, context }` because `pi`'s
@@ -11,7 +11,7 @@
  * text;` and then matches `/^\/([^\s]+)(?:\s+([\s\S]*))?$/`, anchored at
  * both ends (`@earendil-works/pi-coding-agent@0.84.2`,
  * `prompt-templates.js:222-224`). Provenance is unconditional, so any single
- * string that puts it before a slash-command delegate context reaches the
+ * string that puts it before a slash-command renewal context reaches the
  * model as literal, unexpanded prose; putting the context first instead
  * expands it but swallows the provenance into `$@`. Delivering `prelude`
  * and `context` as two separate messages (task 3.3, a later batch) is the
@@ -41,14 +41,14 @@ export interface RestartPayloadInput extends ProvenanceInput {
 export interface RestartPayload {
   /** Provenance, then the summary and next steps that survived the toggles. Never empty. */
   prelude: string;
-  /** The registered delegate context, alone, or null when none is registered. */
+  /** The registered renewal context, alone, or null when none is registered. */
   context: string | null;
 }
 
 /**
  * Renders the one unconditional line every restart payload opens with: the
  * restart ordinal, the timestamp, and the reason. It is the only signal
- * that lets a delegate context — replayed with no memory of its own —
+ * that lets a renewal context — replayed with no memory of its own —
  * distinguish restart 1 from restart 5, and therefore the only guard
  * against replaying forever.
  *
@@ -66,10 +66,10 @@ export function buildProvenance(input: ProvenanceInput): string {
 
 /**
  * Assembles the restart payload from provenance, the agent-supplied summary
- * and next steps (each gated by its toggle), and the registered delegate
+ * and next steps (each gated by its toggle), and the registered renewal
  * context. Returns the two parts split for delivery as two messages (see
  * the file header): `prelude` is provenance + [summary] + [next steps],
- * joined by a blank line; `context` is the delegate context alone, trimmed,
+ * joined by a blank line; `context` is the renewal context alone, trimmed,
  * or `null` when none is registered.
  *
  * A section is present iff it is a string non-empty after `.trim()`;
@@ -78,8 +78,8 @@ export function buildProvenance(input: ProvenanceInput): string {
  * passed in — they are then the only payload the fresh session gets. Every
  * emitted section is trimmed at its edges only; interior whitespace
  * (including blank lines) is preserved verbatim. This does not contradict
- * the delegate context's "stored verbatim" contract — storage
- * (`delegate-state.ts`) is untouched by this module; trimming here is a
+ * the renewal context's "stored verbatim" contract — storage
+ * (`renewal-state.ts`) is untouched by this module; trimming here is a
  * delivery-time normalisation of surrounding whitespace only, done because
  * the context is delivered as its own message and must satisfy
  * `startsWith("/")` for the runtime to expand it.

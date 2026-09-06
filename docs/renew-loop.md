@@ -28,8 +28,7 @@ the same extension and the same child runner serve callers that have nothing to 
 | `/renew-loop` | a prompt template | the protocol: work → hand over → restart, until a stop condition or the budget |
 | `pi-renew` | an extension | a generic context-restart primitive; knows nothing about loops |
 | `subagent-brief`, `subagent-review` | skills | **brief-and-review only** — the brief the executor works from, and the notes the diff is reviewed against |
-| `pi-subagent` | a skill | runs a unit as a one-shot child, where no `subagent` tool is installed |
-| `pi-subagent-rpc`, `pi-subagent-tmux` | skills, under `.claude/skills/` | drive a `pi` process from outside — for developing and testing this repo only, deliberately kept out of the `skills/` tree `pi` loads |
+| `pi-subagent`, `pi-subagent-rpc`, `pi-subagent-tmux` | skills, under `.claude/skills/` | drive a `pi` process from outside — for developing and testing this repo only, deliberately kept out of the `skills/` tree `pi` loads |
 | `pi-subagents`, OpenSpec | third-party, optional | better lanes for the same jobs — see [Optional companions](#optional-companions) |
 
 ---
@@ -56,7 +55,7 @@ pi install "$PWD"
 #    …which writes the entry into ~/.pi/agent/settings.json:
 #    "packages": [ …, "<path to this checkout>" ]
 
-# 2. (Once per machine) Turn on the high-context auto-restart; add model aliases if you like:
+# 2. (Once per machine) Turn on the automatic high-context renewal; add model aliases if you like:
 #    cat ~/.pi/agent/pi-renew.json
 #    { "highContextReminder": { "enabled": true, "thresholdFraction": 0.85 } }
 
@@ -68,15 +67,13 @@ pi install "$PWD"
 
 **No symlinking into `~/.pi/agent/`.** An earlier version of this section had you install the inner
 `pi-extensions/pi-renew` directory and then link `prompts/loop.md` and `skills/` into `~/.pi/agent/`
-(back when the prompt was `loop.md` and the command was `/renew-loop`)
-by hand. The manifest install replaces all of it. If you still have that setup, the two registrations
+(back when the prompt was `loop.md` and the command was `/loop`) by hand. The manifest install replaces all of it. If you still have that setup, the two registrations
 stack — and a duplicate extension is exactly what the live tests refuse to run against. From a checkout, run
 `./install.mjs --check` to list the leftovers and `./install.mjs --migrate` to remove them.
 
 The manifest points `skills` at the **whole tree**, not at individual skills, and that matters: the
-skills are siblings of one another — `subagent-review` reads `../subagent-brief/…`, and `pi-subagent`
-reads `../pi-driver-common/…`, a shared library with no `SKILL.md` of its own. Registering skills one
-by one would break those relative references. The two development drivers are deliberately *not* in
+skills are siblings of one another — `subagent-review` reads `../subagent-brief/…`. Registering skills
+one by one would break those relative references. The development drivers are deliberately *not* in
 this tree — they live under `.claude/skills/`, so `pi` never loads them.
 
 `/renew-loop` installs globally, so it works in every repo with no trust gate — while the file itself stays
@@ -129,6 +126,8 @@ want, and the protocol translates it into its parameters.
 | When to stop | `until the e2e suite is green`, `stop when the migration runs clean` — **optional** |
 | How long to run | `max 20 turns` — **optional**; the default budget is **10** |
 | Where state lives | `handover .pi/renew-loop/add-auth/handover-add-auth.md` — **optional**; say nothing and the loop finds or creates one |
+| When state gets archived | `handover max 300 lines` — **optional**; the handover rotates at **500 lines** by default |
+| Keep state in git | `commit the handover` — **optional**; by default `.pi/renew-loop/` ignores itself |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
 | Don't restart at all | `do everything in this session, no context restart` |
@@ -148,8 +147,9 @@ decision is due, when the same step fails twice, or when a commit or push fails.
 that turns that off; only the budget above is something you actively set.
 
 Being **blocked** is not automatically one of them. A turn stopped by a defect it did not introduce —
-a broken build, a duplicate registration, a fixture an earlier unit left wrong — gets repaired and the
-loop carries on, even when the repair lives outside the work at hand, provided the shortest correct
+a broken build, a duplicate registration, a fixture an earlier unit left wrong, or a plan the last turn
+recorded that cannot meet the unit's own criteria — gets repaired and the loop carries on, even when
+the repair lives outside the work at hand or in a unit already ticked, provided the shortest correct
 repair changes no design. Where it would, that is a decision and the loop stops for it.
 
 ### Where the handover lives
@@ -168,11 +168,24 @@ of starting a parallel history beside it.
 brief-and-review mode the current unit's brief and notes sit beside it:
 
 ```
-.pi/renew-loop/add-auth/
-├── handover-add-auth.md      # what just happened, and where the loop is
-├── brief-3-2.md              # unit 3.2's brief          (brief-and-review only)
-└── review-3-2.md             # unit 3.2's reviewer notes (brief-and-review only)
+.pi/renew-loop/
+├── .gitignore                      # a single `*` — none of this is committed
+└── add-auth/
+    ├── handover-add-auth.md        # what just happened, and where the loop is
+    ├── handover-add-auth-old-1.md  # history, once the handover outgrew 500 lines
+    ├── brief-3-2.md                # unit 3.2's brief          (brief-and-review only)
+    └── review-3-2.md               # unit 3.2's reviewer notes (brief-and-review only)
 ```
+
+**None of it is committed.** The first run to create `.pi/renew-loop/` writes a `.gitignore` there
+holding a single `*`, which covers the subtree and the ignore file itself. The handover, its archives,
+the briefs, the reviewer notes and any transcribed task list are the run's private state — written for
+the next session, not for a reviewer — and keeping them out of the index means the commits a run
+produces are the work it did, without a file that churns on every turn sitting in each one. A handover
+adopted from an older run that *was* tracked is moved and then untracked (`git rm --cached`, the file
+stays on disk), because ignore rules never apply to what is already in the index. Say `commit the
+handover` in the request to keep the state in git instead, and a directory you name yourself is used
+as given — the loop adds nothing to a directory it did not create.
 
 The slug is the task list's own directory where that names the work (`openspec/changes/add-auth/tasks.md`
 → `add-auth`), otherwise the file's stem (`docs/add-auth-plan.md` → `add-auth-plan`); a directory that
@@ -200,6 +213,33 @@ the previous turn just wrote.
 
 Naming a path explicitly always wins and skips the search, which is what `/renew-loop continue from
 .pi/renew-loop/add-auth/handover-add-auth.md` does.
+
+### When the handover gets too long
+
+The handover is rewritten every turn, but rewriting is not replacing: each turn tends to keep the last
+turn's progress "for context", and twenty turns of that leaves a file which is mostly finished history.
+A handover well past a hundred kilobytes is a real outcome of a long OpenSpec run, and it fails twice
+over — the next session has to mine the paragraph that says where the loop actually is out of nineteen
+that no longer decide anything, and reading it spends the fresh context the restart was there to buy.
+
+So the loop measures the handover at the end of each turn, after rewriting it. Past **500 lines** — or
+whatever `handover max N lines` said — it rotates:
+
+- the current file is moved to `handover-<slug>-old-<n>.md` beside it, `n` counting up from the highest
+  archive already there. Archives are never deleted, written into, renumbered, or adopted as a handover
+  by a later run;
+- a fresh handover is written at the canonical path holding only what the next sessions need: the header
+  block, an `Archive:` line naming what was just moved, exactly where in the flow the run is (in
+  brief-and-review, which half of which unit, and the brief and notes paths), the last turn or two of
+  progress as the no-progress guard's baseline, everything still open — units, pending decisions,
+  carried-forward improvements — and the traps: what to avoid, what not to re-attempt, what looks wrong
+  but is deliberate;
+- everything else stays in the archive: finished units' narratives, checks that passed and stayed
+  passing, decisions already made and applied. Nothing is lost — it is one `cat` away, by name.
+
+Rotation happens in the same commit as that turn's handover update, never consumes a unit or a turn, and
+is named in the turn's report, so a handover that suddenly got shorter is never mistaken for state that
+went missing.
 
 ### When the task list has no checkboxes
 
@@ -274,7 +314,7 @@ restart, and a review against notes written before the diff existed.
 ```
 TURN 1  (fresh session)
 ├─ /renew-loop expands: protocol body + your request at $@
-├─ STEP 1: register the delegate context = "/renew-loop <your request, verbatim>"
+├─ STEP 1: register the renewal context = "/renew-loop <your request, verbatim>"
 │          └─ validated now: does "/renew-loop" resolve?   — crash-safe from here on
 ├─ STEP 2: resolve the work · the handover · the stop condition · the budget (default 10)
 ├─ STEP 3: read the handover → do ONE turn's work → run its check → tick → commit
@@ -371,11 +411,10 @@ line:
 
 1. a **`subagent` tool** (from [`pi-subagents`](#optional-companions)) — a real child session per
    unit, with a `reviewer` child available as a second opinion on the diff;
-2. the **`pi-subagent` skill** in this package — a one-shot `pi` child;
-3. **this same session** — no child at all: the unit is implemented here, from the brief, under the
+2. **this same session** — no child at all: the unit is implemented here, from the brief, under the
    same restricted reading.
 
-The third is a fallback, not a cancellation. The brief, the reviewer notes and the two-turn split all
+The second is a fallback, not a cancellation. The brief, the reviewer notes and the two-turn split all
 still happen; what is lost without a child runner is the executor's context isolation, not the review.
 A brief written for a cold executor is worth writing even when you are the executor — it is what makes
 the result checkable by someone who was not there, and after a restart, that is you.
@@ -395,7 +434,7 @@ it took.
 
 | Lane | Best | Then | Floor |
 |---|---|---|---|
-| running a unit (brief-and-review) | [`pi-subagents`](https://github.com/nicobailon/pi-subagents) — `subagent` with `agent: "worker"`, and a `reviewer` child for a second opinion | this repo's `pi-subagent` skill (one-shot `pi -p`) | the unit runs in this session, from the brief, under the same restricted reading |
+| running a unit (brief-and-review) | [`pi-subagents`](https://github.com/nicobailon/pi-subagents) — `subagent` with `agent: "worker"`, and a `reviewer` child for a second opinion | — | the unit runs in this session, from the brief, under the same restricted reading |
 | the work's shape | [OpenSpec](https://github.com/Fission-AI/OpenSpec) — `openspec show/status/validate`, and `openspec archive` to apply the change when you ask for it | — | a markdown checklist, and the loop adds the checkboxes if the file has none |
 | brief and review | `subagent-brief`, `subagent-review` (this repo, installed with it) | — | the loop writes the brief and the notes itself, to the outlines in the protocol |
 | the restart | `pi-renew` (this repo) | — | No-restart mode: the turns run in one session, still bounded |
@@ -426,13 +465,13 @@ always done: reset the context and carry your summary and next steps forward.
 
 ```
 > we're done exploring; clean the context and keep going with the migration
-   → the agent calls the delegation tool with a summary and next steps
+   → the agent calls `renew_session` with a summary and next steps
    → the session restarts carrying just those
 ```
 
 The same happens automatically when the high-context trigger fires, in any flow, with no loop present.
 
-If you *do* register a delegate context, it is replayed on every restart, and it can be anything the runtime
+If you *do* register a renewal context, it is replayed on every restart, and it can be anything the runtime
 can expand:
 
 | Registered context | What the fresh session receives |
@@ -445,35 +484,38 @@ can expand:
 
 ## Driving `pi` from outside
 
-Three skills run a `pi` process from the shell. Only the first is reachable from the loop, and only in
-brief-and-review mode; the other two exist so this tooling can be tested without a human in it.
+Three skills run a `pi` process from the shell. **None of them is reachable from the loop** — they all
+live under `.claude/skills/`, outside the `skills/` tree the `pi` manifest registers, and they exist so
+this tooling can be tested without a human in it.
 
-| Skill | Where it lives | Mode | Use it for |
-|---|---|---|---|
-| `pi-subagent` | `skills/` | one-shot | **brief-and-review's fallback runner** — it launches this per unit where `pi-subagents` is not installed; also a self-contained question. Cannot exercise restarts at all |
-| `pi-subagent-rpc` | `.claude/skills/` | long-lived, headless | development only: scripted runs, asserting on structured events |
-| `pi-subagent-tmux` | `.claude/skills/` | long-lived, real TUI | development only: the surface you actually use; dead-pane post-mortems |
+| Skill | Mode | Use it for |
+|---|---|---|
+| `pi-subagent` | one-shot | a self-contained question or task in a separate `pi` process. Cannot exercise restarts at all |
+| `pi-subagent-rpc` | long-lived, headless | scripted runs, asserting on structured events |
+| `pi-subagent-tmux` | long-lived, real TUI | the surface you actually use; dead-pane post-mortems |
 
-The two development drivers sit under `.claude/skills/` on purpose: they exist to test this repo's own
-tooling, and nothing `/renew-loop` does should be able to reach them. They still resolve `../pi-driver-common/…`
-— the repo carries a symlink at `.claude/skills/pi-driver-common` pointing back at `skills/pi-driver-common`,
-so the one shared library has exactly one copy.
+They sit under `.claude/skills/` on purpose: they exist to test this repo's own tooling, and nothing
+`/renew-loop` does should be able to reach them. `pi-driver-common` — the shared library the three
+resolve as `../pi-driver-common/…` — is a fourth directory alongside them, so there is exactly one copy.
+
+**None of them pins a model.** Given no `--model` they pass none, and `pi` resolves the default from
+its own settings (`defaultProvider`/`defaultModel` in `~/.pi/agent/settings.json`); an explicit
+`--model` is validated against the catalogue before anything is spawned.
 
 The RPC driver sees things the model and the tools cannot — notably runtime errors from messages an extension
 tried to send. When a run "succeeds" but nothing happened, look there first.
 
-Where `pi-subagents` is installed, brief-and-review prefers its `subagent` tool over the `pi-subagent`
-skill — a real child session, with a `reviewer` available for a second pass on the diff. The skill stays as
-the floor beneath it, and neither is required: with no child runner at all the unit runs in the session
-that briefed it. All three runners produce the same artefacts, so a run that changes runner mid-way is
-still one coherent history.
+Where `pi-subagents` is installed, brief-and-review runs each unit through its `subagent` tool — a real
+child session, with a `reviewer` available for a second pass on the diff. It is not required: with no
+child runner the unit runs in the session that briefed it. Both runners produce the same artefacts, so a
+run that changes runner mid-way is still one coherent history.
 
 ---
 
 ## Troubleshooting
 
 **The fresh session ignored my loop and answered something else.**
-The delegate context was delivered but not expanded — the model received the literal text `/renew-loop …`. Usually
+The renewal context was delivered but not expanded — the model received the literal text `/renew-loop …`. Usually
 `/renew-loop` is not registered at all, or the template was renamed after registration. Check that `/help` lists
 `/renew-loop`, and that `pi list` shows the pi-renew package; `./install.mjs --check` in a checkout reports the same thing plus
 any stale symlinks from the pre-manifest setup. Registration-time validation is meant to catch this at session
@@ -503,9 +545,8 @@ That is the default budget doing its job. The handover holds the run: continue w
 `/renew-loop continue from <handover>`, or re-run the same request with `max 25 turns`.
 
 **It implemented the unit in my own session instead of a child.**
-In brief-and-review mode, no runner was installed — neither the `subagent` tool from `pi-subagents` nor
-this repo's `pi-subagent` skill. That is the documented floor, not a fault, and the handover's `Runner:`
-line records it. Install `pi-subagents` if you want a real child session per unit. (In the plain loop
+In brief-and-review mode, no runner was installed — there was no `subagent` tool from `pi-subagents`.
+That is the documented floor, not a fault, and the handover's `Runner:` line records it. Install `pi-subagents` if you want a real child session per unit. (In the plain loop
 this is simply how it works: the turn does its own work unless you asked for it to be delegated.)
 
 **It wrote no brief, and reviewed nothing.**
@@ -516,6 +557,17 @@ request for the two-turn brief-and-review mode.
 The file listed units but had nothing to tick, and the exit test and the no-progress guard both read that
 file. The change is `- [ ]` on each unit line and nothing else, in its own commit before the first unit.
 Give it a list that already has checkboxes — an OpenSpec `tasks.md`, say — and it changes nothing.
+
+**The handover is not in any of the commits.**
+By design: `.pi/renew-loop/.gitignore` is a single `*`, so the run's state stays out of the index and
+the commits hold the work and the task-list tick. The file is on disk where the report line said it is.
+Say `commit the handover` in the request if you want it tracked.
+
+**A `handover-<slug>-old-1.md` appeared, and the handover got shorter.**
+That is rotation: the handover passed 500 lines, so the loop archived it under that name and rewrote a
+fresh one with only what the next sessions need — where the run is, what is open, the pending decisions
+and the traps. Nothing was dropped; the archive keeps the rest, and the new handover's `Archive:` line
+names it. Say `handover max N lines` in the request to rotate at a different size.
 
 **It created a second handover for what I thought was the same work.**
 The `Work:` line of the existing handover names something different from what this run resolved.
@@ -543,7 +595,7 @@ shape and the modes are the template's own invention. `pi-renew` never interpret
 replays a registered string. That ignorance is what lets the same extension serve callers with
 nothing to do with this protocol.
 
-**Why `new-session` is always passed explicitly, and `compact` never.** The registered delegate
+**Why `new-session` is always passed explicitly, and `compact` never.** The registered renewal
 context is assembled only inside the `/pi-renew` command handler, and only the `new-session`
 branch dispatches that command. Under `compact` the fresh context receives a short continuation
 notice and nothing else — no protocol body, no request — so the loop dies after one turn.

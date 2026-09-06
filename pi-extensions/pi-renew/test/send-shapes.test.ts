@@ -63,7 +63,7 @@ describe("sendPayload (task 3.7, payload mode)", () => {
 
   it("sends a /skill:-shaped payload in payload mode too, with both options and content unmodified", () => {
     const sender = makeSender();
-    const payload = "/skill:my-loop .pi/loop/handover.md";
+    const payload = "/skill:my-loop .pi/renew/handover.md";
     sendPayload(sender, payload);
 
     expect(sender.sendUserMessage.mock.calls[0][0]).toBe(payload);

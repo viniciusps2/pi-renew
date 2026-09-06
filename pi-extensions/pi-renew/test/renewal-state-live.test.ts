@@ -1,10 +1,10 @@
 /**
- * Task 2.5 (live, O5) — the deferred *live* half of the delegate-context state contract.
+ * Task 2.5 (live, O5) — the deferred *live* half of the renewal-context state contract.
  *
  * Every other test in this package mocks `pi` and the session context. This one, like
  * `test/restart-e2e.test.ts`, drives a **real `pi --mode rpc` process** and asserts on what it
  * actually wrote to disk. The property it proves is the one 2.5 exists to protect: a registered
- * delegate context **survives a real session replacement** (the extension is re-instantiated across
+ * renewal context **survives a real session replacement** (the extension is re-instantiated across
  * the replacement, so nothing in memory carries over — only the record, re-keyed by `rename()`),
  * and the restart counter increments 0 → 1 across a **single** `/pi-renew` restart.
  *
@@ -19,24 +19,24 @@
  *   comments; nothing here branches control flow on it.
  *
  * WHY REGISTRATION IS WRITTEN TO DISK RATHER THAN TOOL-CALLED (decision 8):
- *   The extension registers a delegate context only through the `set_delegate_context` *tool*
+ *   The extension registers a renewal context only through the `set_renewal_context` *tool*
  *   (`pi-renew.ts` registers it as a tool; there is no command path), so a test that made the
  *   model emit that call would make a state-survival test depend on model behaviour. Instead we
- *   write the record straight to `<proj>/.pi/loop/delegate-<seedId>.json` — exactly the shape the
+ *   write the record straight to `<proj>/.pi/renew/renewal-<seedId>.json` — exactly the shape the
  *   tool would persist — keyed to the seed's session id. Registration *semantics* (input
  *   validation, the reset-to-0 on a fresh registration) are already covered by the mocked
- *   `test/registration.test.ts` and `test/delegate-reinstantiation.test.ts`; this test asserts
+ *   `test/registration.test.ts` and `test/renewal-reinstantiation.test.ts`; this test asserts
  *   survival, not input validation.
  *
  * WHY THIS RUNS IN A TEMP PROJECT DIR (F137):
- *   `.pi/loop/` is created under the **spawned process's cwd**, so the records land in
- *   `<proj>/.pi/loop`, not in the repo. Spawning with `cwd = <proj>` (a fresh temp dir) keeps every
+ *   `.pi/renew/` is created under the **spawned process's cwd**, so the records land in
+ *   `<proj>/.pi/renew`, not in the repo. Spawning with `cwd = <proj>` (a fresh temp dir) keeps every
  *   artifact — session files *and* records — inside `<base>`, which `afterAll` removes, so nothing
  *   pollutes the repo.
  *
  * THE GATE IS ACTUALLY TWO STAGES, NOT ONE (F145):
  *   The restart has two on-disk effects and they land at very different times. The **record**
- *   (`delegate-<sessionId>.json`) is re-keyed onto the new session id within ~1-4 s of the restart
+ *   (`renewal-<sessionId>.json`) is re-keyed onto the new session id within ~1-4 s of the restart
  *   prompt (F133) — that is what `pollRecord` above waits for. The **replacement session file**
  *   itself is written lazily by `pi`, only on the first assistant response (`session-manager.js`
  *   creates it then, matching the `newSession()` contract) — tens of seconds later, and gated by the
@@ -60,28 +60,26 @@ import {
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
+import { discoverDefaultModel } from "./default-model";
 
 // --- Portable paths (computed from this file's own location, never hardcoded to /data/...) ---
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 /** The extension entry point, loaded with an explicit `-e` (F125). Absolute, in the repo. */
 const EXTENSION_PATH = resolve(TEST_DIR, "..", "pi-renew.ts");
 
-// --- The pin (decision 7): hardcoded, never resolved from model.js or an env var. ---
-// `llm-1/qwen3.8-27b` is the pin of this repo's live artifacts again as of the 2026-08-28 evening
-// flip-back (D-H87, user instruction). The 27b endpoint was dead the same morning (F131) but
-// answered a control prompt in ~1-2 s at the 18:08 check (F139) and stays the pin. It is named both
-// here and in the seed's `model_change` entry, so the resumed session is not at the mercy of
-// whatever `defaultModel` the machine happens to hold.
-const MODEL_ID = "llm-1/qwen3.8-27b";
-const MODEL_PROVIDER = "llm-1";
-const MODEL_ID_SHORT = "qwen3.8-27b";
+// --- The model: discovered from `pi`'s own settings, never pinned here (see default-model.ts).
+// The seed's `model_change` entry and the `--model` this test spawns `pi` with both come from
+// this one read, so they cannot disagree — which is the only thing the fixture actually needs.
+// Discovery throws rather than guessing: a live run against an unintended model would report a
+// pass that means nothing.
+const { id: MODEL_ID, provider: MODEL_PROVIDER, modelId: MODEL_ID_SHORT } = discoverDefaultModel();
 
 // --- Seed + registration constants ---
 const SEED_ID = "aaaa1111aaaa";
 const SEED_FILE = `${SEED_ID}.jsonl`;
-const SEED_RECORD_KEY = `delegate-${SEED_ID}.json`;
+const SEED_RECORD_KEY = `renewal-${SEED_ID}.json`;
 /**
- * The registered delegate context. A single opaque string that (a) cannot occur by accident,
+ * The registered renewal context. A single opaque string that (a) cannot occur by accident,
  * (b) survives a JSON round-trip byte-for-byte, (c) has no leading/trailing whitespace, and
  * (d) has no leading `/` — a leading slash would engage the expander / registration-validation
  * semantics this test is deliberately not trying to exercise.
@@ -115,9 +113,9 @@ interface ParsedRecord {
   lastReason?: string;
 }
 
-/** The `<cwd>/.pi/loop` directory the spawned process writes its delegate records into (F137). */
-function loopDir(projDir: string): string {
-  return join(projDir, ".pi", "loop");
+/** The `<cwd>/.pi/renew` directory the spawned process writes its renewal records into (F137). */
+function renewDir(projDir: string): string {
+  return join(projDir, ".pi", "renew");
 }
 
 /**
@@ -186,12 +184,12 @@ function writeSeed(sessionsDir: string, projDir: string): string {
 }
 
 /**
- * Write the registered delegate-context record straight to disk (decision 8) — the same shape the
- * `set_delegate_context` tool would persist, keyed to the seed's session id, so the extension's
+ * Write the registered renewal-context record straight to disk (decision 8) — the same shape the
+ * `set_renewal_context` tool would persist, keyed to the seed's session id, so the extension's
  * session_start adoption and the first restart's `claimRestartOrdinal` find exactly this record.
  */
 function writeRegistration(projDir: string, sessionId: string): void {
-  const dir = loopDir(projDir);
+  const dir = renewDir(projDir);
   mkdirSync(dir, { recursive: true });
   const record: ParsedRecord = {
     version: 1,
@@ -201,24 +199,24 @@ function writeRegistration(projDir: string, sessionId: string): void {
     restartCount: 0,
     registeredAt: "2026-08-28T00:00:00.000Z",
   };
-  writeFileSync(join(dir, `delegate-${sessionId}.json`), JSON.stringify(record, null, 2) + "\n", "utf8");
+  writeFileSync(join(dir, `renewal-${sessionId}.json`), JSON.stringify(record, null, 2) + "\n", "utf8");
 }
 
-/** All `delegate-*.json` record filenames currently in the loop dir (may be empty). */
-function listDelegateKeys(projDir: string): string[] {
-  const dir = loopDir(projDir);
+/** All `renewal-*.json` record filenames currently in the renew dir (may be empty). */
+function listRenewalKeys(projDir: string): string[] {
+  const dir = renewDir(projDir);
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((f) => f.startsWith("delegate-") && f.endsWith(".json"));
+  return readdirSync(dir).filter((f) => f.startsWith("renewal-") && f.endsWith(".json"));
 }
 
 /** Read and parse one record. Throws if it cannot be read — the poll treats that as "not yet". */
 function readRecord(projDir: string, key: string): ParsedRecord {
-  const raw = readFileSync(join(loopDir(projDir), key), "utf8");
+  const raw = readFileSync(join(renewDir(projDir), key), "utf8");
   return JSON.parse(raw) as ParsedRecord;
 }
 
 /**
- * Poll the loop dir every `POLL_MS` until `predicate(keys, readKey)` is true, or reject after
+ * Poll the renew dir every `POLL_MS` until `predicate(keys, readKey)` is true, or reject after
  * `POLL_TIMEOUT_MS`. A predicate that throws (a mid-write record) counts as "not yet" — the poll
  * keeps going; only the wall-clock bound can fail the run.
  */
@@ -232,7 +230,7 @@ function pollRecord(
     let timer: NodeJS.Timeout | undefined;
     const tick = () => {
       try {
-        if (predicate(listDelegateKeys(projDir), (k) => readRecord(projDir, k))) {
+        if (predicate(listRenewalKeys(projDir), (k) => readRecord(projDir, k))) {
           if (timer) clearTimeout(timer);
           resolveP();
           return;
@@ -354,7 +352,7 @@ function pollReplacementSessionFile(
  * collected event stream, the still-live child, and the record snapshot taken at the hop so the
  * assertions can be made without re-reading.
  */
-function driveDelegateState(
+function driveRenewalState(
   sessionsDir: string,
   projDir: string,
   seedPath: string,
@@ -419,7 +417,7 @@ function driveDelegateState(
           },
           "r1: exactly one re-keyed record with restartCount 1"
         );
-        const r1Keys = listDelegateKeys(projDir);
+        const r1Keys = listRenewalKeys(projDir);
         const r1Record = r1Keys.length === 1 ? readRecord(projDir, r1Keys[0]) : {};
 
         if (finished) return;
@@ -514,7 +512,7 @@ function collectText(content: unknown): string {
   return "";
 }
 
-describe("task 2.5 (live, O5) — delegate state survives a real session replacement (pi --mode rpc)", () => {
+describe("task 2.5 (live, O5) — renewal state survives a real session replacement (pi --mode rpc)", () => {
   let baseDir = "";
   let sessionsDir = "";
   let projDir = "";
@@ -544,7 +542,7 @@ describe("task 2.5 (live, O5) — delegate state survives a real session replace
     "one /pi-renew restart: one record, re-keyed, restartCount 0→1, context verbatim",
     async () => {
       // 1. Fresh isolated temp base: <base>/sessions (where session files land) and <base>/proj
-      //    (the spawned process's cwd, so .pi/loop lands here — F137). Nothing touches the repo.
+      //    (the spawned process's cwd, so .pi/renew lands here — F137). Nothing touches the repo.
       baseDir = mkdtempSync(join(tmpdir(), "pi-renew-live-"));
       sessionsDir = join(baseDir, "sessions");
       projDir = join(baseDir, "proj");
@@ -558,13 +556,13 @@ describe("task 2.5 (live, O5) — delegate state survives a real session replace
 
       // 3. Drive: spawn, gate on the extension (F129), one restart (F126), gated on the on-disk
       //    record (F133) — never on agent_settled.
-      const { events, child: liveChild, r1 } = await driveDelegateState(sessionsDir, projDir, seedPath, (c) => {
+      const { events, child: liveChild, r1 } = await driveRenewalState(sessionsDir, projDir, seedPath, (c) => {
         child = c;
       });
 
       // (a) after the restart: exactly one record, re-keyed off the seed, restartCount 1, reason
       //     probe-r1. Proves the spec's "Context survives session replacement" + the D-H4 rename, live.
-      expect(r1.keys, `exactly one delegate-*.json after the restart; found ${JSON.stringify(r1.keys)}`).toHaveLength(1);
+      expect(r1.keys, `exactly one renewal-*.json after the restart; found ${JSON.stringify(r1.keys)}`).toHaveLength(1);
       expect(r1.keys[0], "the record must have been re-keyed off the seed's id").not.toBe(SEED_RECORD_KEY);
       expect(r1.record.restartCount, "the record must have claimed ordinal 1").toBe(1);
       expect(r1.record.lastReason, "the record must record its reason").toBe(REASON_R1);

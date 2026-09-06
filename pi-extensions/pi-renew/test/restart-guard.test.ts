@@ -11,7 +11,7 @@ import {
 
 /**
  * §2.1 + §2.2 of the restart guard, driven through the same mocked `pi`/`ctx` idiom the
- * rest of this package's suite uses (see `test/delegate-command.test.ts`,
+ * rest of this package's suite uses (see `test/renew-command.test.ts`,
  * `test/restart-strategy.test.ts`): the tool's dispatch and the `session_start`
  * handshake each run in a separate extension instance, so neither actually calls the
  * other — each half is driven directly against a real `mkdtemp` cwd.
@@ -34,7 +34,7 @@ function makeMockPi(commands: any[] = []): any {
   };
 }
 
-function getDelegateToAgentTool(mockPi: any) {
+function getRenewSessionTool(mockPi: any) {
   return mockPi.registerTool.mock.calls[0][0];
 }
 
@@ -75,7 +75,7 @@ describe("§2.1 idempotent stand-down guard at the tool dispatch", () => {
     const sessionId = "guard-session";
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
 
     // Seed the in-flight record for this session's parent key, as a first (now-in-flight)
     // restart would have done.
@@ -104,7 +104,7 @@ describe("§2.1 idempotent stand-down guard at the tool dispatch", () => {
     const sessionId = "guard-session-2";
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
 
     // Nothing seeded — the guard sees no in-flight record for this parent.
     expect(checkRestartInFlight(cwd, sessionId).blocked).toBe(false);
@@ -128,7 +128,7 @@ describe("§2.1 idempotent stand-down guard at the tool dispatch", () => {
     const sessionId = "guard-standdown-token";
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
 
     beginRestart(cwd, sessionId, "original restart", 5);
     expect(checkRestartInFlight(cwd, sessionId).blocked).toBe(true);
@@ -151,7 +151,7 @@ describe("§2.1 idempotent stand-down guard at the tool dispatch", () => {
     const sessionId = "guard-pending-token";
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
 
     expect(checkRestartInFlight(cwd, sessionId).blocked).toBe(false);
 

@@ -12,6 +12,9 @@
 // fully-qualified, catalogued id or an explicit exit 2 — never a guess.
 
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 /** Thrown by resolveModelId; carries the exit code its caller should use (decision 4: 2). */
 export class ModelResolutionError extends Error {
@@ -25,21 +28,51 @@ export class ModelResolutionError extends Error {
 
 const USAGE_EXIT_CODE = 2;
 
-// The default pin every driver skill uses when its caller doesn't override --model. Kept
-// here, not duplicated in each driver, for the same anti-drift reason the rest of this
-// module lives in one place (design.md D10): a generic harness reused by multiple drivers
-// needs the pin overridable explicitly, per-run, rather than baked in unreachably the way
-// the one-shot driver bakes in its own (skills/pi-subagent/pi-agent.sh has its own separate
-// MODEL constant deliberately — it predates this module and is out of scope this batch).
+// No default model is pinned here, and none is pinned in any driver. A driver that is not
+// given an explicit --model passes NO --model flag to `pi` at all, so `pi` resolves its own
+// default the same way an interactive session does. That is the only way the drivers can
+// never drift from the model the user actually configured.
 //
-// 2026-08-28 flip-back (user instruction): llm-1/Qwen3.8-Flash-Next -> llm-1/qwen3.8-27b.
-// The 27b endpoint had been dead when it was re-pinned away (a `--no-session` control prompt
-// produced no assistant event in 120s; handover F131), but the same control prompt answers
-// ~1s with `agent_settled` as of the 2026-08-28 18:08 check (F139). It is `defaultModel` in
-// ~/.pi/agent/settings.json and has a 260K window. A catalogue row is still not a live
-// endpoint (F84/F102/F131) — if this row ever goes silent again, the control probe in the
-// driver skills is the thing that exposes it, not this validation.
-export const DEFAULT_MODEL_ID = 'llm-1/qwen3.8-27b';
+// readDefaultModelId() below exists for REPORTING, not for selection: a driver records what
+// `pi` is expected to pick so its meta.json and its logs name a model, without that name
+// ever becoming an argument. If it cannot be read, the driver still runs — it just reports
+// the model as unknown, which is honest, rather than substituting a guess.
+
+/** The agent directory `pi` reads settings from; PI_CODING_AGENT_DIR overrides the default. */
+function agentDir() {
+  return process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent');
+}
+
+/**
+ * The model `pi` will use when no --model is passed, read from its settings.
+ *
+ * `defaultModel` in `~/.pi/agent/settings.json` is stored UNQUALIFIED (e.g.
+ * "qwen3.8-27b-superfast"); the provider is the separate `defaultProvider` field. This
+ * joins them into the "provider/model" form the rest of this module speaks.
+ *
+ * Returns null — never a fallback id — when the file is missing, unreadable, malformed, or
+ * missing either field. A caller must treat null as "unknown", not as "use something else":
+ * there is deliberately nothing else to use.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.settingsPath] Override, for tests.
+ * @returns {string|null}
+ */
+export function readDefaultModelId({ settingsPath = join(agentDir(), 'settings.json') } = {}) {
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(settingsPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const { defaultProvider, defaultModel } = parsed;
+  if (typeof defaultProvider !== 'string' || defaultProvider === '') return null;
+  if (typeof defaultModel !== 'string' || defaultModel === '') return null;
+  // Already qualified in the settings file: take it as it stands rather than double-prefixing.
+  if (defaultModel.includes('/')) return defaultModel;
+  return `${defaultProvider}/${defaultModel}`;
+}
 
 /**
  * Run `pi --list-models` with no search term and return its raw stdout. Offline, ~1.5s,

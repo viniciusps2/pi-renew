@@ -29,8 +29,8 @@ describe("model switching via nextModel parameter", () => {
 
   beforeEach(() => {
     // O25: the compact branch (the default strategy, used by every test in this file) now
-    // reads/writes the delegate-state record, so the mock ctx needs a real cwd — a temp
-    // dir, not process.cwd(), so a stray .pi/loop/delegate-*.json can never touch the
+    // reads/writes the renewal-state record, so the mock ctx needs a real cwd — a temp
+    // dir, not process.cwd(), so a stray .pi/renew/renewal-*.json can never touch the
     // developer's own real state (handover F37).
     cwd = mkdtempSync(join(tmpdir(), "model-switching-test-"));
     mockPi = {
@@ -173,7 +173,7 @@ describe("model switching via nextModel parameter", () => {
     expect(result.content[0].text).toContain("nonexistent-model");
   });
 
-  it("should include model note in the delegation summary when nextModel is provided", async () => {
+  it("should include model note in the handover summary when nextModel is provided", async () => {
     extensionFactory(mockPi);
 
     function getHandler(mockPi: any, eventName: string) {

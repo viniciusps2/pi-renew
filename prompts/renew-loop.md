@@ -28,6 +28,8 @@ Map it onto the parameters below by intent — there are no flags.
 | `max N turns`, `max N restarts` | the turn budget — **default 10** |
 | `handover <path>` | where the handover lives |
 | nothing about a handover | Step 2 finds this work's own, or creates it |
+| `handover max N lines`, `rotate the handover at N lines` | when the handover is archived and rewritten — **default 500 lines** |
+| `commit the handover`, `track the handover` | keep the run's state in git — by default it is ignored |
 | `ask me between turns`, `check in each turn` | pause after each turn instead of restarting |
 | `one turn only`, `do one unit and stop` | a budget of 1 |
 | `no context restart`, `do everything in this session` | No-restart mode |
@@ -37,8 +39,8 @@ Map it onto the parameters below by intent — there are no flags.
 | nothing about a summary | no report — end with a short completion statement |
 
 Never guess a missing parameter. Step 2 either resolves it by a rule that gives the same answer every
-turn, or stops and asks. The two exceptions are the ones with safe defaults: an unstated budget is
-**10**, and an unstated mode is the plain loop.
+turn, or stops and asks. The exceptions are the ones with safe defaults: an unstated budget is **10**,
+an unstated rotation threshold is **500 lines**, and an unstated mode is the plain loop.
 
 A run needs at least one way to end. A stop condition, a task list that can empty, or both — and the
 budget behind them either way. If the request gives none of those, the budget alone bounds the run,
@@ -75,11 +77,11 @@ and re-registering only resets the restart counter the budget is read from.
 
 Before reading the handover, the task list, or anything else:
 
-- Call `set_delegate_context` with `context` set to the literal string `/renew-loop ` followed by the
+- Call `set_renewal_context` with `context` set to the literal string `/renew-loop ` followed by the
   request in Your request above, character for character — no paraphrase, no re-ordering, no
   tidying. This is what makes turn 1 crash-safe: a session lost before the first restart resumes by
   replaying that string. Normalizing it makes the loop drift once per turn.
-- If `set_delegate_context` is unavailable, `pi-renew` is not loaded. Note that in the handover, run
+- If `set_renewal_context` is unavailable, `pi-renew` is not loaded. Note that in the handover, run
   in one session (see No-restart mode) regardless of what the request asked for, and say so plainly
   in your final message.
 
@@ -96,11 +98,11 @@ that could answer differently on turn 4 than on turn 3 hands the fresh session s
   handover carries the plan instead. **Never invent a task list**: point at one, or work from the
   goal and record the steps in the handover.
 - **The handover** — below. It is the only thing that survives the restart.
-- **The bounds.** The stop condition in the request, and the turn budget (default 10). Write both
-  into the handover on the first turn and read them back from it afterwards, so a resumed run keeps
-  the bound it started with.
+- **The bounds.** The stop condition in the request, the turn budget (default 10) and the handover's
+  rotation threshold (default 500 lines). Write them into the handover on the first turn and read them
+  back from it afterwards, so a resumed run keeps the bounds it started with.
 - **Make a task list tickable**, if there is one — below.
-- **The restart primitive.** `set_delegate_context` and `delegate_to_agent` present → restart between
+- **The restart primitive.** `set_renewal_context` and `renew_session` present → restart between
   turns. Absent → No-restart mode. That is the only capability the default loop cares about; the
   optional lanes are probed only in the modes that use them.
 
@@ -124,6 +126,19 @@ The canonical handover is `.pi/renew-loop/<slug>/handover-<slug>.md`. **Never cr
 collides with every other run in the same repo, and the collision is silent: the next session adopts
 a stranger's state and reports progress that belongs to someone else's work.
 
+**The state directory ignores itself.** The first time you create `.pi/renew-loop/` — or find it
+without one — write a `.gitignore` there whose only line is `*`. That covers the whole subtree and the
+`.gitignore` itself, so the handover, its archives, the briefs, the reviewer notes and any transcribed
+task list stay out of the index. They are this run's private state, written for the next session and
+for you: a reviewer reading the work's diff should not have to page past a file that churns on every
+turn, and a run whose state is committed makes every commit it produces noisier than the change it
+carries. Create the file, do not stage it, and never `git add -f` anything beneath it.
+
+The two exceptions: a directory the request named itself — you use the path as given and add nothing
+to a directory you did not create for this — and a request that asks for the state to be **tracked**
+(`commit the handover`), which means no `.gitignore`, and the handover goes into the turn's commit as
+below.
+
 Named in the request — including `/renew-loop continue from <path>` — → use that path and skip the
 search. Otherwise look in all of these, and do not stop at the first hit, because knowing whether
 there are two is the point:
@@ -133,6 +148,10 @@ there are two is the point:
 3. legacy paths from before this rule, which are **adopted and then moved**, never written to:
    `.pi/loop/<slug>/handover.md`, `.pi/loop/handover.md`, `<task-list-dir>/handover.md`
 
+A file named `handover-<slug>-old-<n>.md` is an **archive** this run wrote itself — see rotation,
+below. It is never a candidate: do not adopt one, do not write to one, and do not count one among the
+candidates when deciding whether several validate.
+
 A candidate **validates only if it is about this work**: its `Work:` line names the same task list or
 goal, or — for one written before that line existed — its own text plainly refers to it. A handover
 naming *different* work belongs to another run: skip it, never merge the two, and never adopt one
@@ -140,7 +159,10 @@ whose subject you cannot confirm either way.
 
 - **Exactly one validates** → adopt it, and add the `Work:` line if it has none. If it sits at a
   legacy path, move it — with anything beside it this run wrote — to the canonical path in this same
-  turn (`git mv` where they are tracked), and say so in your first report line.
+  turn, and say so in your first report line. One already **tracked** in git needs untracking as well
+  (`git mv`, then `git rm --cached <new path>`, which leaves the file on disk, committed together):
+  ignore rules do not apply to what is already in the index, so a tracked handover keeps appearing in
+  every later diff until it is taken out of one.
 - **Several validate** → **stop and ask which.** Two live handovers for one piece of work is exactly
   the ambiguity this protocol never guesses at. Make the answer cheap: list them with their
   last-modified time and the turn each records, and recommend one.
@@ -163,9 +185,10 @@ Rewrite it at the end of every turn. It is written for a reader with no memory o
 Work:        <the task list path, or the goal in one line>
 Slug:        <the slug, fixed on turn 1>
 Mode:        <plain | brief-and-review>  ·  Turn: <n> of <budget>
-Runner:      <brief-and-review only: subagent tool | pi-subagent skill | this session>
+Runner:      <brief-and-review only: subagent tool | this session>
 Stop when:   <the stop condition, or "the task list is empty", or "the budget">
 Next:        <the one concrete thing the next turn does first>
+Archive:     <the newest handover-<slug>-old-<n>.md, once rotation has written one>
 
 ## Progress
 <what this turn changed, as facts — files, commits, checks run and their result>
@@ -180,6 +203,46 @@ Next:        <the one concrete thing the next turn does first>
 ## Notes
 <gotchas the next turn would otherwise rediscover>
 ```
+
+### When the handover gets too long
+
+Rewriting the handover every turn is not the same as *replacing* it, and over a long run the two drift
+apart: each turn keeps the last turn's progress "for context", and by turn twenty the file is mostly
+finished history — a reader with no memory of the session has to mine the one paragraph that says where
+the loop is out of nineteen that no longer decide anything. A handover that large also costs the fresh
+context it was supposed to save.
+
+So measure it at the end of every turn, once the rewrite is done. **Over 500 lines** — or the threshold
+the request named — rotate it, in this same turn:
+
+1. **Archive the current file** as `handover-<slug>-old-<n>.md` beside it, where `n` is one higher than
+   the highest already there — `handover-add-auth-old-1.md`, then `-old-2.md` (`git mv` only in a
+   tracked state directory). Never delete an archive, never write into one, never renumber the existing
+   ones.
+2. **Write a new handover** at the canonical path, in the shape above, holding only what the next
+   sessions actually need:
+   - the header block in full — it is the run's identity and bounds, and every turn re-reads it — plus
+     an `Archive:` line naming the file you just moved;
+   - **exactly where in the flow the run is**: the step this run is at, and in brief-and-review mode
+     which half of which unit, with the brief and reviewer-notes paths when one is mid-unit;
+   - what the last turn or two changed, as facts. The no-progress guard compares against `## Progress`,
+     so it needs a real baseline — not the whole history, but not an empty section either;
+   - everything still **open**: the units not yet ticked, `## Decisions pending` in full, and any 🟡 or
+     🔴 improvement carried forward;
+   - the **traps**: gotchas the next turn would otherwise rediscover, what it must not re-attempt, what
+     looks wrong but is deliberate, and any repair whose reason still applies.
+   A non-default threshold goes in `## Notes`, so a run resumed with `continue from <path>` keeps the
+   bound it started with.
+3. **Leave the rest behind.** Finished units' narratives, checks that passed and stayed passing,
+   decisions already made and applied, notes about code that no longer exists — the archive holds them,
+   and a turn that genuinely needs one can read it by name. Nothing is lost by rotating; the cost is all
+   in *not* rotating.
+
+Rotation is bookkeeping, not the turn's work: it never consumes a unit and is never a reason to stop.
+The archive is ignored exactly like the handover, so a plain `mv` finishes it — there is nothing to
+stage, and nothing to commit unless the request asked for the state to be tracked, where it rides along
+with that turn's handover update. Say in your report line that you rotated and name the archive — a
+handover that shrank between turns should never look like state that went missing.
 
 ### Making a task list tickable
 
@@ -216,19 +279,29 @@ Check it once, on the first turn of a run:
 4. **Close the unit** in the task list, where there is one — tick its checkbox. Nothing else does
    this, and the exit test and the no-progress guard both read it. With no task list, the handover's
    `## Open` section is what they read instead, so keep it honest.
-5. **Commit**, if the request asks for commits, with the task-list edit and the handover update in
-   the same commit; push only if the request asks for that too.
+5. **Commit**, if the request asks for commits: the turn's work and the task-list tick. The handover
+   and everything beside it are ignored, so they stay out of it — unless the request asked for the
+   state to be tracked, in which case the handover update goes in the same commit. Push only if the
+   request asks for that too.
 6. **Rewrite the handover** to the shape above, with this turn's number and a `Next:` line that the
-   next session could act on cold.
+   next session could act on cold — then rotate it if it has outgrown the threshold, as above.
 
 **A blocked turn is not automatically a stop.** First prove the blocker is not your own work:
 reproduce it on something referencing none of this turn's changes, or on a clean tree, and name the
 first failure in the chain — if that is your own code, it is a correctness finding and the loop stops.
 Then ask whether the **shortest** correct repair changes a design decision, a public surface, a
-dependency, a protocol or a test's strength. **None of them → repair it and carry on**, as its own
-`fix:` commit before the turn's, re-running the check after. **Any of them → that is a decision: stop
-and report it.** Record either outcome in the handover. Never take the third option of calling the
-turn done against a reduced bar.
+dependency or a protocol, or **weakens** a test — a deleted assertion, a loosened matcher, a `skip`,
+a simplified double. Replacing an assertion with an equal or stronger one is not a weakening. **None
+of them → repair it and carry on**, as its own `fix:` commit before the turn's, re-running the check
+after. **Any of them → that is a decision: stop and report it.** Record either outcome in the
+handover. Never take the third option of calling the turn done against a reduced bar.
+
+**Two cases look like neither.** A defect found *before* anything runs — the approach the handover
+recorded cannot meet the unit's own criteria — is proved by naming the mechanism that would break and
+the source that settles it, instead of by a failing command; the triage is otherwise unchanged. And a
+repair inside a unit **already ticked** leaves the tick alone, landing in front of the current unit as
+its own `fix:`; where it changes that unit's assertions, read what fixed them first — pinned by a
+brief or the design is a decision, merely recording the behaviour of the day is not.
 
 ## Step 4 — Stop, or restart into the next turn
 
@@ -256,10 +329,10 @@ Check these in order, before doing anything else with the turn's result:
 5. **`ask` between turns** was requested → report the turn, name what the next one would do, and wait.
    When the user says to carry on, restart into the next turn as in 6 rather than continuing here: the
    fresh context is the point, and the restart ordinal is how the budget is counted.
-6. **Otherwise, restart.** Call `delegate_to_agent` with:
+6. **Otherwise, restart.** Call `renew_session` with:
    - `reason` — `renew-loop-turn`.
    - `strategy` — always `new-session`, passed explicitly. Never omit it and never pass `compact`:
-     `compact` does not replay a registered delegate context, so the fresh context would get a bare
+     `compact` does not replay a registered renewal context, so the fresh context would get a bare
      continuation notice and the loop would die after this turn.
    - `summary` — the tool's structured summary (Goal, Constraints & Preferences, Progress, Key
      Decisions, Next Steps, Critical Context) for the turn that just finished.
@@ -267,21 +340,21 @@ Check these in order, before doing anything else with the turn's result:
 
 **High-context variant.** If the extension's high-context reminder fires mid-turn, that is not your
 decision to restart — follow the reminder instead: stop work, write a complete handover including its
-`Next:` line, then call `delegate_context_high` with `handoverPath` pointing at that file. Do not call
-`delegate_to_agent` for this path; `delegate_context_high` calls it internally with the right reason
+`Next:` line, then call `renew_from_handover` with `handoverPath` pointing at that file. Do not call
+`renew_session` for this path; `renew_from_handover` calls it internally with the right reason
 and nextSteps. A turn cut short this way still counts against the budget.
 
 ## No-restart mode
 
-Selected by the request, or forced by Step 1 when `set_delegate_context` is unavailable. Run the turns
-in sequence in one session, with no `delegate_to_agent` call of your own, still stopping on the same
+Selected by the request, or forced by Step 1 when `set_renewal_context` is unavailable. Run the turns
+in sequence in one session, with no `renew_session` call of your own, still stopping on the same
 conditions and the same budget — counted here from the handover's `Turn:` line, since there is no
 restart ordinal to read. Write the handover every turn anyway — it is the record of what
 happened, not restart bookkeeping — and be aware that the context you were supposed to shed is still
 with you: keep each turn's reading as tight as if it were about to be thrown away.
 
 If the high-context reminder fires anyway, follow it: write the handover and call
-`delegate_context_high`. It restarts the session even though nothing else here does — it is the
+`renew_from_handover`. It restarts the session even though nothing else here does — it is the
 extension's safety net, and not optional because the request asked for no restarts.
 
 ## Opt-in: brief-and-review mode
@@ -304,15 +377,13 @@ in this order, and take the first that is actually there:
 
 1. a **`subagent` tool** (from `pi-subagents`) → run units with `agent: "worker"`, and a `reviewer`
    child is available as a second opinion on the diff;
-2. the **`pi-subagent` skill** (`/skill:pi-subagent`) → run each unit as a one-shot child process;
-3. **neither** → run the unit **in this same session**, from the brief, under the same restricted
+2. **none** → run the unit **in this same session**, from the brief, under the same restricted
    reading. The mode is not cancelled by the absence of a runner: the brief, the reviewer notes and
    the two-turn split are what it is for, and they all still happen. What you lose is the executor's
    context isolation, so keep the reading tight.
 
-Record which one you found in the handover (`Runner: subagent tool` / `pi-subagent skill` / `this
-session`) and name it in the turn's report, so a run that fell back is visible rather than
-mysterious.
+Record which one you found in the handover (`Runner: subagent tool` / `this session`) and name it
+in the turn's report, so a run that fell back is visible rather than mysterious.
 
 ### The analyse half
 
@@ -329,6 +400,12 @@ mysterious.
 6. Update the handover: `Mode: brief-and-review`, the unit, its tier, the brief and notes paths, the
    units still open, and `Next: execute <unit>`.
 7. Restart with `reason: renew-loop-analysis` — same call shape as Step 4.6 otherwise.
+
+**If the analysis finds the plan itself defective** — the approach the handover recorded would fail
+the unit's own acceptance criteria — that is Step 3's repair rule, not a stop by default. Prove it
+against the design rather than against a failing command, then run the same triage. Where it clears,
+the brief you write is the corrected one and the correction lands as its own `fix:` in the execute
+half; where it does not, stop with the options.
 
 Write the brief and notes beside the handover as `brief-<unit-slug>.md` and `review-<unit-slug>.md`,
 slug from the unit's number or title (`5.4` → `5-4`). The handover's directory already carries the
@@ -351,7 +428,6 @@ review's yardstick, not skill bookkeeping, so they get written either way:
 3. **Run the unit**, immediately, in the runner the handover's `Runner:` line names — no further
    reading, no re-deriving context from the task list or the source tree:
    - `subagent` tool → call it with `agent: "worker"` and the brief as the task;
-   - `pi-subagent` skill → launch the one-shot child asynchronously;
    - this session → implement it yourself, from the brief. The restricted reading is *not* relaxed
      here: it is what the restart bought. If the brief is not enough to implement from, that is a
      defect in the brief — record it in the handover and re-analyse rather than reading around it.
@@ -397,12 +473,12 @@ Degrade, and say which lane you took — the handover's `Notes` is the place.
 
 | Lane | Present when | Then | Otherwise |
 |---|---|---|---|
-| **child runner** | a `subagent` tool, or `/skill:pi-subagent` | brief-and-review looks for it first and records what it found; the plain loop uses it only if the request asks to delegate the work | do the turn's work in this session |
+| **child runner** | a `subagent` tool | brief-and-review looks for it first and records what it found; the plain loop uses it only if the request asks to delegate the work | do the turn's work in this session |
 | **brief / review skills** | `/skill:subagent-brief`, `/skill:subagent-review` | brief-and-review uses them | the outlines above |
 | **OpenSpec** | `openspec --version` answers — or `npx openspec --version`, for a project-local install — and the repo has an `openspec/` directory | `openspec show <change>` / `status --change <change>` to resolve the change; `validate <change> --strict` in the check when a unit touches the spec delta; `archive <change>` **only if the request asked**, after the stop condition is met, as its own commit | the task list is a plain markdown checklist and the spec files are ordinary files |
 
 **A missing tool is never a hard stop.** The one absence that changes the run is
-`set_delegate_context`, and that selects No-restart mode rather than stopping.
+`set_renewal_context`, and that selects No-restart mode rather than stopping.
 
 ## The final report
 

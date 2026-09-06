@@ -21,6 +21,7 @@ import { createWriteStream, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { computeIdleSeconds, IdleWatchdog, surfaceBytesFromCatalogue } from '../pi-driver-common/idle.js';
+import { readDefaultModelId } from '../pi-driver-common/model.js';
 import { JsonlDecoder } from '../pi-driver-common/jsonl.js';
 import { foldEvents } from '../pi-driver-common/session.js';
 
@@ -75,7 +76,11 @@ function main() {
   // session `pi` never wrote. A caller that genuinely wants an ephemeral run can append
   // `-- --no-session` (pi is last-flag-wins).
   const sessionDir = path.join(runDir, 'sessions');
-  const piArgs = ['--mode', 'rpc', '--model', model, '--session-dir', sessionDir, '-ne', '-nc'];
+  // No --model given means the flag is omitted entirely, so `pi` resolves its own default
+  // model. Never substitute a pin here: an id this driver invented would silently win over
+  // the user's own settings.
+  const piArgs = ['--mode', 'rpc', '--session-dir', sessionDir, '-ne', '-nc'];
+  if (model !== undefined) piArgs.unshift('--model', model);
   if (approve) piArgs.push('--approve');
   piArgs.push(...extra);
 
@@ -104,7 +109,9 @@ function main() {
     writeFileSync(
       metaPath,
       JSON.stringify({
-        model,
+        // The model actually pinned by the caller, or the default `pi` is expected to pick
+        // (read from its settings purely so meta.json names one). null when neither is known.
+        model: model ?? readDefaultModelId(),
         cwd,
         approve,
         idleSeconds,

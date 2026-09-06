@@ -16,12 +16,38 @@ A full verification run of this repo, on `pi` **0.85.0**, Node 22:
 
 | Suite | How | Result |
 |---|---|---|
-| Extension unit tests | `cd pi-extensions/pi-renew && npx vitest run` (excluding the two live files) | **263 passed**, 27 files |
+| Extension unit tests | `cd pi-extensions/pi-renew && npx vitest run` (excluding the two live files) | **283 passed**, 28 files |
 | Extension typecheck | `npx tsc --noEmit` | **clean** |
 | Live restart e2e (`new-session`) | `npx vitest run test/restart-e2e.test.ts` | **passed** — a real `pi --mode rpc`, a pre-seeded session, one `/pi-renew` restart, a second session file with `parentSession` = seed, the first turn back at the input floor, clean exit, no `extension_error` |
-| Live delegate-state | `npx vitest run test/delegate-state-live.test.ts` | **passed** |
-| Driver library | `cd skills/pi-driver-common && node --test` | **50 passed** |
+| Live renewal-state | `npx vitest run test/renewal-state-live.test.ts` | **passed** |
+| Driver library | `cd .claude/skills/pi-driver-common && node --test` | **50 passed** |
 | tmux driver | `cd .claude/skills/pi-subagent-tmux && node --test` | **11 passed** |
+
+**Re-verified after the `delegate_*` → `renew_*` rename and the development-skill move**, on `pi`
+**0.85.1**: the unit suite (263 passed, 27 files at the time — see the report-only note below), the
+typecheck, the driver library (**53** passed —
+three new `readDefaultModelId` cases) and the tmux driver (11 passed) are all green; a live
+`pi --mode json` session loads the extension and reports exactly `renew_session`,
+`renew_from_handover` and `set_renewal_context` with no `extension_error`; and **both live tests
+pass**, run against an isolated agent directory (see precondition 2 below).
+
+**Report-only sessions, added after the rename.** A session that cannot restart — `--mode print` /
+`--mode json`, or any session whose launcher sets `PI_RENEW_REPORT_ONLY` — now gets a reminder that
+asks for a report instead of a renewal, and both renewal tools are blocked in it. This came out of
+an observed sub-agent run that stopped implementing, wrote a handover addressed to a session that
+could never exist, and re-announced the same doomed restart every turn until it ran out; the full
+story is in [the extension README](../pi-extensions/pi-renew/README.md#where-this-came-from). The
+unit suite is **283 passed, 28 files** with the change in (20 new tests in
+`test/report-only-session.test.ts`), typecheck clean, no existing test modified. **Not yet covered
+by a live test:** every new assertion is a unit test against a mocked context, so the mode
+auto-detection has not been observed end-to-end in a real one-shot `pi` run. That is the first
+thing to prove before trusting it.
+
+**No model is pinned anywhere.** The driver skills pass no `--model` unless a caller supplies one,
+so `pi` resolves the default from its own settings; the two live tests read the same
+`defaultProvider`/`defaultModel` pair (`test/default-model.ts`) so a seed session file names exactly
+the model the spawned `pi` will pick. Every previous hardcoded pin in this repo eventually went
+stale — twice — and each time the failure read as a restart defect rather than a model problem.
 
 Two environment preconditions, both of which produce a *silent* failure when unmet — the live tests
 report "extension did not load" and nothing says why:
@@ -32,8 +58,28 @@ report "extension did not load" and nothing says why:
 2. **No second copy of this extension may be installed.** The live tests load the extension with an
    explicit `-e` *without* `-ne`, so anything in `~/.pi/agent/settings.json` loads alongside it. A
    second copy — an older checkout, the pre-rename `pi-delegate` — registers the same three tool
-   names, and `pi` refuses the loser with `Tool "delegate_to_agent" conflicts with …`. Whichever copy
+   names, and `pi` refuses the loser with `Tool "renew_session" conflicts with …`. Whichever copy
    loses, the test's readiness gate then reports the extension as absent.
+
+   **This bites whenever `pi-renew` is installed from the checkout you are testing**, which is the
+   normal development setup. The fix that needs no change to the real environment is a throwaway
+   agent directory with `packages: []`:
+
+   ```bash
+   D=$(mktemp -d)
+   python3 - "$D" <<'EOF'
+   import json, os, sys, shutil
+   src = os.path.expanduser("~/.pi/agent")
+   s = json.load(open(f"{src}/settings.json")); s["packages"] = []
+   json.dump(s, open(f"{sys.argv[1]}/settings.json", "w"), indent=2)
+   for f in ("auth.json", "models.json", "models-store.json", "trust.json"):
+       shutil.copy(f"{src}/{f}", sys.argv[1])
+   EOF
+   PI_CODING_AGENT_DIR=$D npx vitest run test/restart-e2e.test.ts test/renewal-state-live.test.ts
+   ```
+
+   `auth.json` and `models.json` matter: without them the run reaches the model with no credentials
+   and fails as `usage.input: 0`, which looks nothing like a configuration problem.
 
 ## Outstanding
 
@@ -51,13 +97,13 @@ is outstanding.
 | Live run of the plain loop, `ask me between turns` | turn → handover → restart → turn; the fresh session's `usage.input` at the baseline floor; answering "yes" starts the next turn and increments the restart ordinal |
 | Live run that ends on its budget | A run whose work outlasts `max N turns` must stop **at** N, report the budget as spent rather than as an error, and hand back a handover the next run adopts. The budget is the only bound every run has, and it has never been exercised live |
 | Live run on a deliberately unclosable unit | The no-progress guard must fire within one turn and stop with a report naming the unit, with no commit for the failed unit. **This guard has never fired in anger** — see the recommendation in [`renew-loop.md`](renew-loop.md#how-a-run-ends) |
-| Live run in brief-and-review mode | Both halves of a unit across a restart, in each of the three runner lanes the mode falls through — `subagent` tool, `pi-subagent` skill, and this session |
+| Live run in brief-and-review mode | Both halves of a unit across a restart, in each of the two runner lanes the mode falls through — the `subagent` tool, and this session |
 | Final reconciliation of [`renew-loop.md`](renew-loop.md) | The banner is honest, and every example and the under-the-hood diagram are reconciled against `prompts/renew-loop.md`. What is left is folding in any troubleshooting entry the live runs surface — a close-out obligation on them |
 
 ### Workstream B — restart reliability
 
 Motivated by an on-disk failure (the `product-master` session `01a04384 → 01a043ca`) analysed in
-a research record kept outside this repo (`docs/delegate-restart-streaming-throw.md`). Two defects:
+a research record kept outside this repo. Two defects:
 
 - **D1 — unbounded success signal.** The tool returned an unqualified "restart is pending" with no
   in-flight state, so the model re-fired the trigger (five times in the instance) until the run was
@@ -71,7 +117,7 @@ The plan recorded **9 of 14** items done — the whole extension side:
 - a persisted in-flight restart record, scoped and max-aged, that survives the extension being
   re-instantiated on the replacement session;
 - an idempotent trigger: a repeat request inside the same live run is a no-op returning a distinct
-  "already delegating — stand down" result, with no second send;
+  "a restart is already in progress — stand down" result, with no second send;
 - a pre-dispatch resolvable check that routes an undispatchable restart into the existing
   `reportRestartFailure` channel instead of a silent "pending";
 - a "pending, never done" result contract with a machine-readable status token;
@@ -82,7 +128,7 @@ Open — all of it **driver-side**:
 
 | Item | State |
 |---|---|
-| Supervision rule: a restart with no settled continuation turn inside a bounded window is a distinct, reported failure | The pure verdict core exists and is unit-tested: `skills/pi-driver-common/supervision.js` (`success` / `no-continuation` / `already-processing` / `pending`, a bounded window, and the "already processing" classifier). **The live wiring is not built** — no driver yet detects a real restart, delimits the post-restart event slice, or emits the signal against a running session |
+| Supervision rule: a restart with no settled continuation turn inside a bounded window is a distinct, reported failure | The pure verdict core exists and is unit-tested: `.claude/skills/pi-driver-common/supervision.js` (`success` / `no-continuation` / `already-processing` / `pending`, a bounded window, and the "already processing" classifier). **The live wiring is not built** — no driver yet detects a real restart, delimits the post-restart event slice, or emits the signal against a running session |
 | Classify the "already processing" `extension_error` as a restart failure | Classifier written and unit-tested; not wired |
 | Bounded, non-blocking supervision with a stable outcome | Same |
 | e2e reproducing the failing shape: one send, no re-fire, loud-not-silent | Not started |
@@ -90,12 +136,12 @@ Open — all of it **driver-side**:
 
 ## Open decisions
 
-**1. `delegate_to_agent`'s default `strategy` is still `compact`.** The intended eventual default is
+**1. `renew_session`'s default `strategy` is still `compact`.** The intended eventual default is
 `new-session`; the flip was held back until the `new-session` path had a verified live run. That run
 is now green (above), so the flip is unblocked — but it is a **breaking change** for any caller
 relying on the current default and has not been made. `/renew-loop` is unaffected either way: it passes
 `new-session` explicitly on every call, and must keep doing so, because `compact` does not replay a
-registered delegate context.
+registered renewal context.
 
 **2. Which `pi` version the live proofs are pinned to.** The history is worth knowing, because it
 produced two wrong diagnoses:

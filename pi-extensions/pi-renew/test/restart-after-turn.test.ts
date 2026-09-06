@@ -129,7 +129,7 @@ describe("--after-turn deferral (task 3.5)", () => {
     const order: string[] = [];
 
     try {
-      // A delegation parks a summary in pendingRestart, then its deferral fails.
+      // A renewal parks a summary in pendingRestart, then its deferral fails.
       await tool.execute(
         "call-1",
         {
@@ -152,7 +152,7 @@ describe("--after-turn deferral (task 3.5)", () => {
       failing.waitForIdle = vi.fn().mockRejectedValue(new Error("nope"));
       await options.handler("--after-turn -- first", failing);
 
-      // A later restart with no delegation behind it must carry no summary at all.
+      // A later restart with no renewal behind it must carry no summary at all.
       const second = makeCommandCtx(cwd, order);
       await options.handler("-- second", second);
 

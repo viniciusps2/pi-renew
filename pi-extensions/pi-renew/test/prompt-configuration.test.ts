@@ -18,7 +18,7 @@ describe("tool prompt configuration", () => {
 
     const toolConfig = mockPi.registerTool.mock.calls[0][0];
     
-    expect(toolConfig.label).toBe("Delegate to Another Agent");
+    expect(toolConfig.label).toBe("Renew Session");
   });
 
   it("should have comprehensive description", () => {
@@ -26,7 +26,7 @@ describe("tool prompt configuration", () => {
 
     const toolConfig = mockPi.registerTool.mock.calls[0][0];
 
-    expect(toolConfig.description).toContain("Delegate to another agent");
+    expect(toolConfig.description).toContain("Renew this session");
     expect(toolConfig.description).toContain("No LLM review");
     expect(toolConfig.description).toContain("/compact is unaffected");
   });
@@ -49,13 +49,13 @@ describe("tool prompt configuration", () => {
     expect(toolConfig.promptGuidelines).toHaveLength(5);
   });
 
-  it("should include guideline about ALWAYS calling delegate_to_agent", () => {
+  it("should include guideline about ALWAYS calling renew_session", () => {
     extensionFactory(mockPi);
 
     const toolConfig = mockPi.registerTool.mock.calls[0][0];
     const guidelines = toolConfig.promptGuidelines;
 
-    expect(guidelines[0]).toContain("ALWAYS call delegate_to_agent");
+    expect(guidelines[0]).toContain("ALWAYS call renew_session");
   });
 
   it("should include guideline about proactive phase transitions", () => {
@@ -65,7 +65,7 @@ describe("tool prompt configuration", () => {
     const guidelines = toolConfig.promptGuidelines;
 
     expect(guidelines[1]).toContain("Proactively");
-    expect(guidelines[1]).toContain("transition to a different agent");
+    expect(guidelines[1]).toContain("renew the session");
   });
 
   it("should include guideline about being thorough in summary", () => {
@@ -75,7 +75,7 @@ describe("tool prompt configuration", () => {
     const guidelines = toolConfig.promptGuidelines;
 
     expect(guidelines[2]).toContain("thorough");
-    expect(guidelines[2]).toContain("ONLY context the next agent will have");
+    expect(guidelines[2]).toContain("ONLY context the renewed session will have");
   });
 
   it("should include guideline about /compact not being affected", () => {

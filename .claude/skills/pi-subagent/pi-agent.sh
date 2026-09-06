@@ -14,7 +14,8 @@
 #   printf '...' | pi-agent [options] -     # read the prompt from stdin
 #   pi-agent --extract <file.jsonl>         # recover the answer from a finished run's event stream
 #
-# The model is pinned to llm-1/qwen3.8-27b — not overridable, and the wrapper never does model discovery.
+# No model is pinned: without -m/--model the wrapper passes no --model at all and `pi` uses the
+# default model from its own settings.
 #
 # Options:
 #   -C, --cwd <dir>      Run the sub-agent in this directory
@@ -117,21 +118,19 @@ main() {
   command -v jq >/dev/null 2>&1 || die "jq not found on PATH"
   command -v node >/dev/null 2>&1 || die "node not found on PATH"
 
-  # Model is pinned: always llm-1/qwen3.8-27b. No -m/--model override, no PI_AGENT_MODEL, no discovery.
-  # Use the fully-qualified catalog id, not a bare alias: the old pin "Q3.5-27B" stopped resolving
-  # and every run then died with `Model "Q3.5-27B" not found` before emitting a single event.
-  # 2026-08-13: the `qwen/qwen3.5-27b` pin went the same way — the `qwen` provider is gone from
-  # `pi --list-models` and every run ended `stopReason=error` with no text. Re-pinned to the
-  # llm-1 catalog id, which is what the catalog actually serves.
-  # 2026-08-23: re-pinned again, llm-1/Q3.6-27B -> llm-1/qwen3.8-27b (both are in the catalog;
-  # this is a deliberate upgrade, not a broken-alias fix). Note the smaller max-output window
-  # (16.4K vs 190K) — ask a sub-agent for a report, not for a giant file dumped inline.
-  # 2026-08-28: the 27b row was temporarily re-pinned to llm-1/Qwen3.8-Flash-Next because the 27b
-  # endpoint went silent (a no-tools control prompt produced no assistant event in 120s; F131) — the
-  # worst form of the broken-alias case, since the row stayed in the catalogue. As of the 2026-08-28
-  # 18:08 check the 27b endpoint answers in ~1s, and on user instruction the pin is FLIPPED BACK to
-  # llm-1/qwen3.8-27b (D-H87). It is also `defaultModel` in ~/.pi/agent/settings.json.
-  local MODEL="llm-1/qwen3.8-27b"
+  # NO model is pinned, and none is discovered-then-passed. When MODEL is empty the `pi`
+  # invocation below carries no --model flag at all, so `pi` resolves the default model from
+  # its own settings (`defaultProvider`/`defaultModel` in ~/.pi/agent/settings.json) exactly as
+  # an interactive session does. That is deliberate, and it is what the pin history below argues
+  # for: every previous pin here eventually stopped resolving, and each time every run died with
+  # `Model "<pin>" not found` — or worse, kept a catalogue row while the endpoint went silent —
+  # before emitting a single event. A wrapper that names no model cannot go stale that way.
+  #   2026-08-13  qwen/qwen3.5-27b   — provider removed from the catalogue; every run errored
+  #   2026-08-23  llm-1/Q3.6-27B     -> llm-1/qwen3.8-27b (deliberate upgrade)
+  #   2026-08-28  flipped to Flash-Next and back when the 27b endpoint went silent
+  # -m/--model is still accepted, and is the only way a model is ever named here: an explicit
+  # override from the caller, for the one run.
+  local MODEL=""
   # IDLE is left UNSET here rather than defaulting to 60: with extensions and MCP tools loaded
   # the prompt reaches ~23.5K input tokens and a cold first token can take longer than a flat
   # 60s (observed: 90s) — the watchdog cannot tell "large surface, slow prefill" from "model is
@@ -146,7 +145,7 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-      -m|--model)     printf 'pi-agent: model is pinned to %s; ignoring --model %s\n' "$MODEL" "$2" >&2; shift 2 ;;
+      -m|--model)     MODEL="$2"; shift 2 ;;
       -C|--cwd)       CWD="$2"; shift 2 ;;
       -t|--timeout)   TIMEOUT="$2"; shift 2 ;;
       --idle)         IDLE="$2"; IDLE_EXPLICIT=1; shift 2 ;;
@@ -230,7 +229,9 @@ main() {
   rm -f "$IDLE_CLI_ERR"
 
   # --- assemble the pi command ----------------------------------------------
-  cmd=(pi -p --mode json --model "$MODEL")
+  cmd=(pi -p --mode json)
+  # Only ever passed when the caller named one with -m/--model; otherwise `pi` picks its default.
+  [ -n "$MODEL" ] && cmd+=(--model "$MODEL")
   [ "$WITH_EXT"  -eq 1 ] || cmd+=(--no-extensions)
   [ "$KEEP_CTX"  -eq 1 ] || cmd+=(--no-context-files)
   [ "$ALLOW"     -eq 1 ] && cmd+=(--approve)

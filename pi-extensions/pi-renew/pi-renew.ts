@@ -8,14 +8,14 @@ import {
   getHighContextReminderConfig,
 } from "./config";
 import {
-  DELEGATE_STATE_VERSION,
-  type DelegateState,
-  resolveDelegateState,
-  writeDelegateState,
-  reapDelegateStates,
+  RENEWAL_STATE_VERSION,
+  type RenewalState,
+  resolveRenewalState,
+  writeRenewalState,
+  reapRenewalStates,
   claimRestartOrdinal,
   sessionIdFromSessionFile,
-} from "./delegate-state";
+} from "./renewal-state";
 import {
   type RestartInflight,
   checkRestartInFlight,
@@ -24,12 +24,19 @@ import {
   markRestartInflightDelivered,
   wasHandoffDelivered,
 } from "./restart-inflight";
-import { type DispatchRunner, resolveDispatchableRestart, resultDetails, renderRestartSignal } from "./restart-dispatch";
 import {
-  validateDelegateContext,
-  parseDelegateCommandArgs,
+  type DispatchRunner,
+  resolveDispatchableRestart,
+  resultDetails,
+  renderRestartSignal,
+  isReportOnlySession,
+  renderReportOnlyDirective,
+} from "./restart-dispatch";
+import {
+  validateRenewalContext,
+  parseRenewCommandArgs,
   isPiRenewRestartCommandName,
-} from "./delegate-context";
+} from "./renewal-context";
 import { assembleRestartPayload } from "./restart-payload";
 import {
   sendExtensionCommand,
@@ -40,12 +47,12 @@ import {
 } from "./send-shapes";
 
 /**
- * Pi Delegate Extension — Agent Delegation via Compaction
+ * pi-renew — session renewal via restart or compaction
  *
- * Uses Pi's built-in compaction infrastructure to delegate to another agent:
+ * Uses Pi's built-in compaction infrastructure to renew a session in place:
  *
- * 1. Agent calls delegate_to_agent with structured summary and next steps
- * 2. Tool sets a pendingDelegation flag and triggers ctx.compact()
+ * 1. Agent calls renew_session with structured summary and next steps
+ * 2. Tool sets a pendingRenewal flag and triggers ctx.compact()
  * 3. session_before_compact fires — if the flag is set, returns
  *    the agent's summary as a CompactionResult (skips the LLM call)
  * 4. If the flag is NOT set (normal /compact or auto-compaction),
@@ -56,16 +63,27 @@ import {
  *
  * The extension is a restart primitive with no opinions about the caller's
  * workflow: it carries a summary, next steps and an opaque reason, plus a
- * caller-registered delegate context replayed verbatim into the replacement
+ * caller-registered renewal context replayed verbatim into the replacement
  * session. It does not resolve personas by looking up prompt files and does
  * not mint artifact paths of its own — a caller wanting a specific persona
- * after a restart registers it in the delegate context instead (task 4.3).
+ * after a restart registers it in the renewal context instead.
  */
 
-interface PendingDelegation {
+interface PendingRenewal {
   summary: string;
   nextSteps: string;
 }
+
+/**
+ * Which high-context reminder this session gets.
+ *
+ * - `restart`     — the ordinary flow: write a handover, call `renew_from_handover`.
+ * - `stand-down`  — a restart is already in flight; do nothing and let it land.
+ * - `report-only` — this session can never restart (one-shot mode, or a launcher that
+ *                   declared it a delegate). Stop and hand a report back to the caller,
+ *                   who spawns a fresh session to continue. See `isReportOnlySession`.
+ */
+type ReminderVariant = "restart" | "stand-down" | "report-only";
 
 const PLANNING_TASK_PATH_PATTERN = /([^\s"'`]+\/planning\/[^\s"'`]*task[^\s"'`]*\.md)\b/gi;
 
@@ -83,18 +101,34 @@ function getReminderMilestone(
 // there. That path was a private artifact convention the spec's "No workflow coupling"
 // requirement forbids ("No private artifact paths"). The reminder now names no location
 // at all — the caller chooses where to write the handover report and supplies that path
-// back at call time, as delegate_context_high's required handoverPath argument.
+// back at call time, as renew_from_handover's required handoverPath argument.
 function createHighContextReminder(
   tokens: number,
   thresholdTokens: number,
   contextWindow: number,
-  inFlight: boolean = false
+  variant: ReminderVariant = "restart"
 ): UserMessage {
-  const lines = inFlight
+  // D-RO1: `report-only` is checked FIRST, before `stand-down`. In a report-only
+  // session no restart can be in flight in any way that matters — nothing here can
+  // dispatch one — so an in-flight record read off disk (a stale file from an earlier
+  // run in the same cwd) must not divert the model into standing down and waiting for
+  // a restart that will never arrive. "This session cannot restart" outranks "a restart
+  // is already running".
+  const lines = variant === "report-only"
+    ? [
+        "System reminder: context usage is too high. Stop work and end this session now.",
+        `Current estimated context: ${tokens} tokens of ${contextWindow} (threshold: ${thresholdTokens}).`,
+        "",
+        renderReportOnlyDirective(),
+        "",
+        "Do not inspect one more thing, do not debug, do not run more tests, and do not make more code changes in this session.",
+        "Do not update task files, plan files, or any project files. Do not make any other change.",
+      ]
+    : variant === "stand-down"
     ? [
         `System reminder: context usage is too high. ${renderRestartSignal(true)}`,
         `Current estimated context: ${tokens} tokens of ${contextWindow} (threshold: ${thresholdTokens}).`,
-        "Take no further action this run; do not call any delegate tool.",
+        "Take no further action this run; do not call any renewal tool.",
       ]
     : [
         `System reminder: context usage is too high. ${renderRestartSignal(false)}`,
@@ -106,8 +140,8 @@ function createHighContextReminder(
         "1. Stop implementation work now.",
         "2. Write the complete handover report to that markdown file. The file must exist and must not be empty.",
         "3. Do not update task files, plan files, or any project files. Do not make any other change.",
-        "4. Call `delegate_context_high` with `handoverPath` set to the exact path you just wrote.",
-        "5. Do not call `delegate_to_agent` directly for this reminder-driven handoff.",
+        "4. Call `renew_from_handover` with `handoverPath` set to the exact path you just wrote.",
+        "5. Do not call `renew_session` directly for this reminder-driven handoff.",
       ];
   return {
     role: "user",
@@ -221,15 +255,15 @@ function standDownText(record: RestartInflight): string {
 export default function (pi: ExtensionAPI) {
   const config = loadConfig();
   const highContextReminder = getHighContextReminderConfig(config);
-  let pendingDelegation: PendingDelegation | null = null;
+  let pendingRenewal: PendingRenewal | null = null;
   let lastReminderMilestone: number | null = null;
 
-  // Mirrors pendingDelegation exactly, for the new-session strategy: the tool sets this
+  // Mirrors pendingRenewal exactly, for the new-session strategy: the tool sets this
   // immediately before dispatching the /pi-renew restart command, and the command
   // handler reads-and-clears it. A factory-closure variable is legitimate here (and is
   // not the in-memory state D-H4 forbids) because the tool and the handler run in the
   // *same* extension instance — this hop never crosses the session-replacement boundary.
-  // What survives that boundary is the on-disk record (delegate-state.ts), read fresh by
+  // What survives that boundary is the on-disk record (renewal-state.ts), read fresh by
   // the handler; this variable only carries what the tool alone knows (the raw summary
   // and next-steps strings) across the one hop that stays inside one process.
   let pendingRestart: { summary?: string; nextSteps?: string } | null = null;
@@ -249,8 +283,8 @@ export default function (pi: ExtensionAPI) {
     ui.notify(message, "error");
   };
 
-  const executeDelegation = async (
-    params: DelegateToAgentParams,
+  const executeRenewal = async (
+    params: RenewSessionParams,
     ctx: {
       mode?: "tui" | "rpc" | "json" | "print";
       compact: (options: {
@@ -263,7 +297,7 @@ export default function (pi: ExtensionAPI) {
       // since nothing was ever dispatched for a command handler to report it from.
       ui: { notify: (message: string, type?: "info" | "warning" | "error") => void };
       // O25: only the `compact` branch needs these — it claims the restart ordinal and
-      // reads the registered delegate context itself now, via claimRestartOrdinal, instead
+      // reads the registered renewal context itself now, via claimRestartOrdinal, instead
       // of leaving that entirely to the `/pi-renew` command handler.
       cwd: string;
       sessionManager: { getSessionId: () => string };
@@ -275,8 +309,12 @@ export default function (pi: ExtensionAPI) {
     // "rpc" is headless but long-lived and works fine — do not guard on "non-interactive".
     if (ctx.mode === "print" || ctx.mode === "json") {
       throw new Error(
-        `delegate_to_agent requires a long-lived pi session and cannot run in --mode ${ctx.mode}. ` +
-          "Use interactive pi or --mode rpc. Nothing was compacted and no continuation was queued."
+        `renew_session requires a long-lived pi session and cannot run in --mode ${ctx.mode}. ` +
+          "Use interactive pi or --mode rpc. Nothing was compacted and no continuation was queued.\n\n" +
+          // D-RO4: the fallback for a runner that never fired `tool_call` (so the D-RO3
+          // block did not run). Without this the model gets a bare failure and retries;
+          // with it, the same directive the reminder gave lands on the tool result too.
+          renderReportOnlyDirective()
       );
     }
 
@@ -287,7 +325,7 @@ export default function (pi: ExtensionAPI) {
     const strategy = params.strategy ?? "compact";
     if (strategy !== "new-session" && strategy !== "compact") {
       throw new Error(
-        `delegate_to_agent: unrecognised strategy "${strategy}". Valid values are "new-session" and "compact".`
+        `renew_session: unrecognised strategy "${strategy}". Valid values are "new-session" and "compact".`
       );
     }
 
@@ -300,19 +338,19 @@ export default function (pi: ExtensionAPI) {
 
     // Spec "No workflow coupling": collapsed to one branch now that the persona-lookup
     // parameter is gone — the extension never names a prompt file for the next session
-    // to load. A caller wanting a persona registers it in the delegate context instead.
+    // to load. A caller wanting a persona registers it in the renewal context instead.
     const nextStepsAction = `**Next Steps**: ${params.nextSteps}\n\nContinue with the next steps.`;
 
     const modelNote = resolvedModelId ? `\n**Model for next session**: ${resolvedModelId}` : "";
 
-    const formattedSummary = `## 🤖 Agent Delegation
+    const formattedSummary = `## 🤖 Session Renewal
 
 **Reason**: ${params.reason}
 **Timestamp**: ${new Date().toISOString()}${modelNote}
 
 ---
 
-### Summary from Previous Agent
+### Summary from the previous session
 
 ${params.summary}
 
@@ -352,7 +390,7 @@ ${nextStepsAction}`;
         };
       }
 
-      // Nothing is compacted on this path — pendingDelegation must stay untouched, or a
+      // Nothing is compacted on this path — pendingRenewal must stay untouched, or a
       // later, unrelated /compact the user runs would be hijacked by a summary that was
       // never meant for it (decision 17).
       pendingRestart = {
@@ -383,9 +421,9 @@ ${nextStepsAction}`;
       }
     } else {
       // O25: claim the ordinal and assemble the payload BEFORE any side effect — before
-      // pendingDelegation is set and before ctx.compact() is called below. A throw from
-      // claimRestartOrdinal (a corrupt or unknown-version delegate-state record) therefore
-      // propagates straight out of executeDelegation as an ordinary tool error: it is the
+      // pendingRenewal is set and before ctx.compact() is called below. A throw from
+      // claimRestartOrdinal (a corrupt or unknown-version renewal-state record) therefore
+      // propagates straight out of executeRenewal as an ordinary tool error: it is the
       // same shape as the mode guard and the strategy guard above (both throw before any
       // side effect). Do NOT catch it and do NOT route it through reportRestartFailure —
       // that sentence ("The session was NOT replaced and your context was NOT reset") is
@@ -418,7 +456,7 @@ ${nextStepsAction}`;
         includeNextSteps: record?.includeNextSteps ?? true,
       });
 
-      pendingDelegation = {
+      pendingRenewal = {
         summary: formattedSummary,
         nextSteps: params.nextSteps,
       };
@@ -427,17 +465,17 @@ ${nextStepsAction}`;
       // itself cannot say. Both variants are frozen byte-for-byte: three toContain
       // assertions in test/compaction-handler.test.ts, one per degraded-error variant,
       // match on "WITHOUT a context reset". The degraded path delivers the payload too:
-      // nothing was reset, but the delegate context still has to be replayed — that is the
+      // nothing was reset, but the renewal context still has to be replayed — that is the
       // whole point of the restart primitive (O25).
       const sendContinuationMessage = async (contextWasReset: boolean, note?: string) => {
         if (targetModel) {
           await pi.setModel(targetModel);
         }
         const header = contextWasReset
-          ? "Agent delegation completed; context was reset."
-          : `Agent delegation continued WITHOUT a context reset (${note}). Your previous context is still present — do not assume a clean slate.`;
+          ? "Session renewal completed; context was reset."
+          : `Session renewal continued WITHOUT a context reset (${note}). Your previous context is still present — do not assume a clean slate.`;
         // Same send-shape split as the new-session path, and for the same reason (D-H7 /
-        // F25): `pi` only expands a slash-command delegate context when it is the *entire*
+        // F25): `pi` only expands a slash-command renewal context when it is the *entire*
         // message, so the header+prelude and the context must go out as two separate
         // messages rather than being joined into one string.
         if (payload.context !== null) {
@@ -461,14 +499,14 @@ ${nextStepsAction}`;
             err.message.includes("session too small") ||
             err.message.includes("Already compacted")
           ) {
-            pendingDelegation = null;
+            pendingRenewal = null;
             await sendContinuationMessage(false, err.message);
             return;
           }
-          pendingDelegation = null;
+          pendingRenewal = null;
           sendPayload(
             pi,
-            `Agent delegation FAILED: compaction errored (${err.message}). Context was not reset and the next steps were not started. Report this rather than continuing.`
+            `Session renewal FAILED: compaction errored (${err.message}). Context was not reset and the next steps were not started. Report this rather than continuing.`
           );
         },
       });
@@ -490,18 +528,18 @@ ${nextStepsAction}`;
       content: [
         {
           type: "text" as const,
-          text: `🤖 **Agent delegation requested**${modelMsg} — a session restart is pending; the next steps (${params.nextSteps}) start in the replacement session.\n\n${formattedSummary}`,
+          text: `🤖 **Session renewal requested**${modelMsg} — a session restart is pending; the next steps (${params.nextSteps}) start in the replacement session.\n\n${formattedSummary}`,
         },
       ],
       details: resultDetails("pending"),
     };
   };
 
-  // Storage housekeeping only: adopts a predecessor's on-disk delegate-state
+  // Storage housekeeping only: adopts a predecessor's on-disk renewal-state
   // record (if any) onto this session's id, and reaps stale records. Never
   // sends a message or injects a prompt — a fresh session must start clean.
   // The restart flow (task 3.x) reads the record from disk itself; caching
-  // resolveDelegateState's return value here would be exactly the in-memory
+  // resolveRenewalState's return value here would be exactly the in-memory
   // state this whole design exists to avoid, since a record written after
   // session start would silently lose to a stale cache.
   pi.on(
@@ -516,8 +554,8 @@ ${nextStepsAction}`;
     ) => {
       try {
         const sessionId = ctx.sessionManager.getSessionId();
-        resolveDelegateState(ctx.cwd, sessionId, event.previousSessionFile);
-        reapDelegateStates(ctx.cwd, sessionId);
+        resolveRenewalState(ctx.cwd, sessionId, event.previousSessionFile);
+        reapRenewalStates(ctx.cwd, sessionId);
         // D-IN8: the delivered handshake. The replacement session only began processing
         // because its predecessor's restart continuation landed, so the replacement
         // beginning to process IS the arrival proof (D3): adopt the predecessor's in-flight
@@ -535,7 +573,7 @@ ${nextStepsAction}`;
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        ctx.ui.notify(`pi-renew: could not restore the delegate context — ${message}`, "warning");
+        ctx.ui.notify(`pi-renew: could not restore the renewal context — ${message}`, "warning");
       }
     }
   );
@@ -576,13 +614,23 @@ ${nextStepsAction}`;
 
     lastReminderMilestone = reminderMilestone;
 
-    // F144: bound call — an unbound getSessionId() threw here and the throw was swallowed
-    // by the runner's handler catch, so the high-context reminder was silently never
-    // delivered on a live session.
-    const inFlight =
-      typeof ctx.cwd === "string" && typeof ctx.sessionManager?.getSessionId === "function"
-        ? checkRestartInFlight(ctx.cwd, ctx.sessionManager.getSessionId()).blocked
-        : false;
+    // D-RO2: the report-only check comes before the in-flight read, and short-circuits
+    // it. checkRestartInFlight touches the disk; in a session that cannot restart at all
+    // the answer could not change the variant (report-only outranks stand-down, see
+    // D-RO1), so the read is pure cost.
+    let variant: ReminderVariant;
+    if (isReportOnlySession(ctx.mode, process.env)) {
+      variant = "report-only";
+    } else {
+      // F144: bound call — an unbound getSessionId() threw here and the throw was swallowed
+      // by the runner's handler catch, so the high-context reminder was silently never
+      // delivered on a live session.
+      const inFlight =
+        typeof ctx.cwd === "string" && typeof ctx.sessionManager?.getSessionId === "function"
+          ? checkRestartInFlight(ctx.cwd, ctx.sessionManager.getSessionId()).blocked
+          : false;
+      variant = inFlight ? "stand-down" : "restart";
+    }
 
     return {
       messages: [
@@ -591,9 +639,32 @@ ${nextStepsAction}`;
           contextUsage.tokens ?? reminderMilestone,
           thresholdTokens,
           contextUsage.contextWindow,
-          inFlight
+          variant
         ),
       ],
+    };
+  });
+
+  // D-RO3: the "don't give the tool" half of the report-only design. The extension
+  // CANNOT withhold a tool from the model's surface: `registerTool` runs in the
+  // activation function, which receives only `pi` (ExtensionAPI has no `mode`), and
+  // there is no unregister and no per-call enable predicate on ToolDefinition. Blocking
+  // the call is the closest reachable equivalent — and it is a better one than the
+  // `executeRenewal` mode guard it sits in front of, because a `reason` STEERS the model
+  // (stop, write the report) where a thrown tool error only tells it that something
+  // failed, which invites a retry. The guard stays as the last line of defence for a
+  // runner that does not fire `tool_call`.
+  //
+  // Deliberately NOT `terminate: true`: the model still has to emit the report, and
+  // terminating the batch would end the run on whatever text preceded the blocked call —
+  // which is exactly the empty-handed result this whole path exists to prevent.
+  const RENEWAL_TOOL_NAMES = new Set(["renew_session", "renew_from_handover"]);
+  pi.on("tool_call", async (event, ctx) => {
+    if (!RENEWAL_TOOL_NAMES.has(event.toolName)) return;
+    if (!isReportOnlySession(ctx.mode, process.env)) return;
+    return {
+      block: true,
+      reason: `${event.toolName} is not available in this session. ${renderReportOnlyDirective()}`,
     };
   });
 
@@ -603,10 +674,10 @@ ${nextStepsAction}`;
 
   // Only intercept compaction when our tool triggered it
   pi.on("session_before_compact", async (event, _ctx) => {
-    if (!pendingDelegation) return; // normal /compact → let Pi handle it
+    if (!pendingRenewal) return; // normal /compact → let Pi handle it
 
-    const delegation = pendingDelegation;
-    pendingDelegation = null; // consume before returning
+    const renewal = pendingRenewal;
+    pendingRenewal = null; // consume before returning
 
     // Use the last entry as cut point — drop everything except it.
     // preparation.firstKeptEntryId keeps ~20k tokens (too much for a clean reset).
@@ -614,7 +685,7 @@ ${nextStepsAction}`;
 
     return {
       compaction: {
-        summary: delegation.summary,
+        summary: renewal.summary,
         firstKeptEntryId: lastEntry.id,
         tokensBefore: event.preparation.tokensBefore,
       },
@@ -622,11 +693,11 @@ ${nextStepsAction}`;
   });
 
   const promptGuidelines = [
-    'ALWAYS call delegate_to_agent when the user asks to "delegate to another agent", "switch agents", "hand off to", or "clean context" (backwards compatibility), unless the extension injected a high-context reminder — then use delegate_context_high instead.',
-    'Proactively call delegate_to_agent to transition to a different agent ONLY when running in AUTO mode and the current phase is fully complete.',
-    "Your summary replaces all old context via Pi's compaction system. Be thorough — this is the ONLY context the next agent will have, and include the task, plan, or report file the next agent should open first when one exists.",
-    "To make the next session adopt a specific persona or workflow, register it with set_delegate_context (prose, '/skill:<name> <args>' or '/<template> <args>') — delegate_to_agent has no persona parameter of its own.",
-    "Normal /compact is NOT affected by delegate_to_agent.",
+    'ALWAYS call renew_session when the user asks to "renew the session", "start fresh", "hand off to a fresh session", "clean context", or "delegate to another agent" (the older wording), unless the extension injected a high-context reminder — then use renew_from_handover instead.',
+    'Proactively call renew_session to renew the session ONLY when running in AUTO mode and the current phase is fully complete.',
+    "Your summary replaces all old context. Be thorough — this is the ONLY context the renewed session will have, and include the task, plan, or report file it should open first when one exists.",
+    "To make the next session adopt a specific persona or workflow, register it with set_renewal_context (prose, '/skill:<name> <args>' or '/<template> <args>') — renew_session has no persona parameter of its own.",
+    "Normal /compact is NOT affected by renew_session.",
   ];
 
   // F49: the runtime DOES validate tool arguments (agent-loop.js calls
@@ -634,16 +705,16 @@ ${nextStepsAction}`;
   // permits unknown keys by default — {additionalProperties:false} is what makes a
   // removed, caller-workflow-named parameter get rejected rather than silently ignored,
   // per the spec's "No phase vocabulary on the surface" scenario. Scoped to this tool
-  // only — delegate_context_high and set_delegate_context were not audited.
+  // only — renew_from_handover and set_renewal_context were not audited.
   const parameters = Type.Object({
     reason: Type.String({
-      description: "Brief explanation of why delegating to another agent (e.g., 'completed analysis phase', 'need specialized expertise')",
+      description: "Brief explanation of why the session is being renewed (e.g., 'completed analysis phase', 'context is full')",
     }),
     nextSteps: Type.String({
       description: "What the next session should do next (e.g. 'implement user authentication', 'create comprehensive test suite'). Free text — the extension never parses it.",
     }),
     summary: Type.String({
-      description: `Structured delegation summary for the next agent. Use this exact format:
+      description: `Structured handover summary for the renewed session. Use this exact format:
 
 ## Goal
 [What is the user trying to accomplish — the overarching objective, not just this phase]
@@ -676,12 +747,12 @@ ${nextStepsAction}`;
 - [Data, examples, code snippets, references needed to continue]
 - [Environment setup, dependencies, API keys, or config details]
 - [Edge cases discovered, error patterns observed]
-- [Task file, plan file, or temp report path the next agent should open first]
+- [Task file, plan file, or temp report path the renewed session should open first]
 
 If a task file or plan file exists, update it before handing off and name it in the summary. If neither exists, create a temp \`.md\` report + plan, save it, and include that path in the summary.`,
     }),
     nextModel: Type.Optional(Type.String({
-      description: "Model to switch to for the next delegated session. Specify a model ID (e.g. 'Q3.5-27B') or a named alias (e.g. 'coding', 'reviewer') defined in ~/.pi/agent/pi-renew.json. Requires the config file to have models defined — see the pi-renew README for setup. If omitted, the current model is kept.",
+      description: "Model to switch to for the renewed session. Specify a model ID (e.g. 'Q3.5-27B') or a named alias (e.g. 'coding', 'reviewer') defined in ~/.pi/agent/pi-renew.json. Requires the config file to have models defined — see the pi-renew README for setup. If omitted, the current model is kept.",
     })),
     // D-H12 (O9): the restart-strategy selector, and it lives here rather than in config
     // (F37 — loadConfig() reads the developer's real ~/.pi/agent/pi-renew.json during
@@ -694,21 +765,21 @@ If a task file or plan file exists, update it before handing off and name it in 
     })),
   }, { additionalProperties: false });
 
-  type DelegateToAgentParams = Static<typeof parameters>;
+  type RenewSessionParams = Static<typeof parameters>;
 
   pi.registerTool({
-    name: "delegate_to_agent",
-    label: "Delegate to Another Agent",
+    name: "renew_session",
+    label: "Renew Session",
     description:
-      "Delegate to another agent — transition work to a specialized agent by replacing old messages with a CompactionEntry containing your summary. " +
-      "Also supports backwards compatible 'clean context' functionality. No LLM review, no compaction delay. Normal /compact is unaffected.",
+      "Renew this session — replace its accumulated context with your own handover summary and continue. " +
+      "No LLM review, no compaction delay. Normal /compact is unaffected.",
     promptSnippet:
-      'When the user says "delegate to [agent]", "switch to [agent]", "hand off to [agent]", "clean context", or "reset context", call delegate_to_agent. ' +
-      "This is the ONLY tool for agent delegation and context cleaning — do not use any other tool or MCP for this.",
+      'When the user says "renew the session", "start a fresh session", "hand off to a fresh session", "clean context", or "reset context", call renew_session. ' +
+      "This is the ONLY tool for renewing a session and cleaning context — do not use any other tool or MCP for this.",
     promptGuidelines,
     parameters,
-    async execute(_toolCallId, params: DelegateToAgentParams, _signal, _onUpdate, ctx) {
-      return executeDelegation(params, ctx);
+    async execute(_toolCallId, params: RenewSessionParams, _signal, _onUpdate, ctx) {
+      return executeRenewal(params, ctx);
     },
   });
 
@@ -717,48 +788,48 @@ If a task file or plan file exists, update it before handing off and name it in 
   // Type.Optional), so the runtime validator rejects an omitted one on its own; execute
   // additionally rejects an empty/whitespace-only value with its own message, since a
   // unit test calling execute() directly bypasses the runtime validator entirely (F49).
-  const delegateContextHighParameters = Type.Object({
+  const renewFromHandoverParameters = Type.Object({
     handoverPath: Type.String({
       description: "Path to the markdown handover report you just wrote. The extension never generates or defaults a handover location — supply the one you used.",
     }),
   });
 
-  type DelegateContextHighParams = Static<typeof delegateContextHighParameters>;
+  type RenewFromHandoverParams = Static<typeof renewFromHandoverParameters>;
 
   pi.registerTool({
-    name: "delegate_context_high",
-    label: "Delegate High Context Handoff",
+    name: "renew_from_handover",
+    label: "Renew From Handover",
     description:
       "Complete the reminder-driven high-context handoff. " +
       "Requires the path to the markdown handover report you wrote — the extension does not generate or default one. " +
       "Fails if that file is missing or empty.",
     promptSnippet:
-      "When the extension injects a high-context reminder, write the handover report to a markdown file of your choosing, then call delegate_context_high with handoverPath set to that file's path.",
+      "When the extension injects a high-context reminder, write the handover report to a markdown file of your choosing, then call renew_from_handover with handoverPath set to that file's path.",
     promptGuidelines: [
-      "Use delegate_context_high ONLY for the reminder-driven high-context handoff flow.",
+      "Use renew_from_handover ONLY for the reminder-driven high-context handoff flow.",
       "Before calling it, write the handover report to a markdown file whose location you choose, then pass that path as handoverPath.",
-      "Do not edit task files, plan files, or any project files before calling delegate_context_high.",
-      "Do not call delegate_to_agent directly after a high-context reminder; delegate_context_high will do that internally.",
+      "Do not edit task files, plan files, or any project files before calling renew_from_handover.",
+      "Do not call renew_session directly after a high-context reminder; renew_from_handover will do that internally.",
     ],
-    parameters: delegateContextHighParameters,
-    async execute(_toolCallId, params: DelegateContextHighParams, _signal, _onUpdate, ctx) {
+    parameters: renewFromHandoverParameters,
+    async execute(_toolCallId, params: RenewFromHandoverParams, _signal, _onUpdate, ctx) {
       const handoverPath = params.handoverPath;
       if (!handoverPath || handoverPath.trim() === "") {
         throw new Error(
-          "delegate_context_high requires handoverPath: the path to the markdown handover report you wrote. The extension does not generate or default a handover location — supply the one you used."
+          "renew_from_handover requires handoverPath: the path to the markdown handover report you wrote. The extension does not generate or default a handover location — supply the one you used."
         );
       }
 
       if (!existsSync(handoverPath)) {
         throw new Error(
-          `Write the handover report first, then call delegate_context_high again. No file exists at: ${handoverPath}`
+          `Write the handover report first, then call renew_from_handover again. No file exists at: ${handoverPath}`
         );
       }
 
       const handoverReport = readFileSync(handoverPath, "utf-8").trim();
       if (!handoverReport) {
         throw new Error(
-          `The handover report file is empty. Write the handover report first, then call delegate_context_high again. Use this exact path: ${handoverPath}`
+          `The handover report file is empty. Write the handover report first, then call renew_from_handover again. Use this exact path: ${handoverPath}`
         );
       }
 
@@ -768,13 +839,13 @@ If a task file or plan file exists, update it before handing off and name it in 
         getPlanningTaskFiles(sessionEntries)
       );
 
-      return executeDelegation(
+      return executeRenewal(
         {
           reason: "context usage too high",
           nextSteps: `Continue from the handover report at ${handoverPath}`,
           summary,
           // O26: explicit, not the shipped "compact" default. Once O25 makes `compact`
-          // deliver the payload too, both strategies replay the delegate context — so this
+          // deliver the payload too, both strategies replay the renewal context — so this
           // is a genuine strategy choice, not a repair. `new-session` additionally records
           // lineage via `parentSession` and produces a clean session file, which is the more
           // useful post-mortem artifact for the failure this path exists to handle: a
@@ -786,7 +857,7 @@ If a task file or plan file exists, update it before handing off and name it in 
     },
   });
 
-  const setDelegateContextParameters = Type.Object({
+  const setRenewalContextParameters = Type.Object({
     context: Type.String({
       description:
         "The text replayed into each restarted session, stored verbatim. May be prose, a '/skill:<name> <args>' command, or a '/<template> <args>' command.",
@@ -803,45 +874,45 @@ If a task file or plan file exists, update it before handing off and name it in 
     ),
   });
 
-  type SetDelegateContextParams = Static<typeof setDelegateContextParameters>;
+  type SetRenewalContextParams = Static<typeof setRenewalContextParameters>;
 
-  // Registered third, after both delegate_to_agent and delegate_context_high: several
+  // Registered third, after both renew_session and renew_from_handover: several
   // existing tests reach the tool under test by registerTool.mock.calls index, not by
   // name, so registering this tool any earlier would silently break those assertions.
   pi.registerTool({
-    name: "set_delegate_context",
-    label: "Set Delegate Context",
+    name: "set_renewal_context",
+    label: "Set Renewal Context",
     description:
-      "Register the delegate context that is replayed into every session this one restarts into. " +
+      "Register the renewal context that is replayed into every session this one restarts into. " +
       "The context is stored verbatim and never parsed: it can be prose, a '/skill:<name> <args>' command, " +
       "or a '/<template> <args>' command, which the runtime expands when the payload is delivered. " +
       "Registering resets the restart counter to 0.",
     promptSnippet:
-      "When the user asks to set, register or change the context that should be replayed after each restart, call set_delegate_context.",
+      "When the user asks to set, register or change the context that should be replayed after each restart, call set_renewal_context.",
     promptGuidelines: [
-      "Register the delegate context before starting work, so the first restart is already covered.",
+      "Register the renewal context before starting work, so the first restart is already covered.",
       "Pass the context exactly as the user gave it — do not summarise, reword or reformat it.",
       "Use includeSummary and includeNextSteps to control the restart payload; never encode that intent as words inside the context.",
     ],
-    parameters: setDelegateContextParameters,
+    parameters: setRenewalContextParameters,
     async execute(
       _toolCallId,
-      params: SetDelegateContextParams,
+      params: SetRenewalContextParams,
       _signal,
       _onUpdate,
       ctx: { cwd: string; sessionManager: { getSessionId: () => string } }
     ) {
       // getCommands() is read here, not at factory time: at factory time it would
       // snapshot the command list before skills and prompts finish loading.
-      validateDelegateContext(params.context, pi.getCommands());
+      validateRenewalContext(params.context, pi.getCommands());
 
       const includeSummary = params.includeSummary ?? true;
       const includeNextSteps = params.includeNextSteps ?? true;
 
       // Verbatim: the context is never trimmed, normalised or inspected. Re-registering
       // overwrites the whole record, which is what resets restartCount to 0.
-      writeDelegateState(ctx.cwd, ctx.sessionManager.getSessionId(), {
-        version: DELEGATE_STATE_VERSION,
+      writeRenewalState(ctx.cwd, ctx.sessionManager.getSessionId(), {
+        version: RENEWAL_STATE_VERSION,
         context: params.context,
         includeSummary,
         includeNextSteps,
@@ -853,7 +924,7 @@ If a task file or plan file exists, update it before handing off and name it in 
         content: [
           {
             type: "text" as const,
-            text: `🤖 **Delegate context registered** — ${params.context.length} characters, includeSummary=${includeSummary}, includeNextSteps=${includeNextSteps}, restart counter reset to 0.`,
+            text: `🤖 **Renewal context registered** — ${params.context.length} characters, includeSummary=${includeSummary}, includeNextSteps=${includeNextSteps}, restart counter reset to 0.`,
           },
         ],
         details: undefined,
@@ -862,7 +933,7 @@ If a task file or plan file exists, update it before handing off and name it in 
   });
 
   pi.registerCommand("pi-renew", {
-    description: "Restart this session, replaying the registered delegate context.",
+    description: "Restart this session, replaying the registered renewal context.",
     // try/catch is not optional: AgentSession._tryExecuteExtensionCommand catches handler
     // throws into emitError and reports the command as "handled", so an uncaught error here
     // would be invisible to both the user and the model.
@@ -888,7 +959,7 @@ If a task file or plan file exists, update it before handing off and name it in 
       pendingRestart = null;
 
       try {
-        const { afterTurn, rest: reason } = parseDelegateCommandArgs(args);
+        const { afterTurn, rest: reason } = parseRenewCommandArgs(args);
 
         // Deferring lets the model's own post-tool turn complete (billed normally) instead
         // of being aborted by the replacement; default is NOT deferred, because that extra
@@ -934,16 +1005,16 @@ If a task file or plan file exists, update it before handing off and name it in 
         }
 
         // D-H4: adoption already happened in the session_start handler that fired when
-        // THIS session started — claimRestartOrdinal reads via readDelegateState, not
-        // resolveDelegateState, because this handler only ever needs its own session's
+        // THIS session started — claimRestartOrdinal reads via readRenewalState, not
+        // resolveRenewalState, because this handler only ever needs its own session's
         // already-adopted record. O25: the read-increment-persist sequence that used to
-        // live inline here (readDelegateState, compute `ordinal`, writeDelegateState) is now
-        // claimRestartOrdinal in delegate-state.ts, shared with the `compact` restart path
+        // live inline here (readRenewalState, compute `ordinal`, writeRenewalState) is now
+        // claimRestartOrdinal in renewal-state.ts, shared with the `compact` restart path
         // so both strategies claim the same counter — see that function's doc comment for
         // the D-H9/D-H15 rationale (never rolled back on a failed restart) it used to carry
         // here. This refactor is behaviour-preserving: same read, same write, same ordinal.
         let ordinal: number;
-        let record: DelegateState | null;
+        let record: RenewalState | null;
         try {
           ({ ordinal, record } = claimRestartOrdinal(
             ctx.cwd,

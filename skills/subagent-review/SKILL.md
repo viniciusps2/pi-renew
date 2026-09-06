@@ -256,10 +256,10 @@ A blocker the child reported, or a gate failure the unit did not introduce, is t
 references none of the unit's code, or on a clean tree, and name the first failure in the chain; if
 that is the unit's own code it is a correctness finding, and the loop stops. Then ask the six 🔴
 triggers of the **shortest** correct repair (spec-fixed decision · public surface · dependency ·
-protocol · spec delta · test strength). **None of them → repair it**, outside the allowed-files table
-and in other units' files if that is where it lives, as its own `fix:` commit before the unit's, with
-the gate re-run after and an `RP-` entry in the handover. **Any of them → stop and report**, in every
-mode. Full lane, bounds and entry format:
+protocol · spec delta · a *weakened* test). **None of them → repair it**, outside the allowed-files
+table and in other units' files if that is where it lives — a unit already ticked included, whose tick
+stands — as its own `fix:` commit before the unit's, with the gate re-run after and an `RP-` entry in
+the handover. **Any of them → stop and report**, in every mode. Full lane, bounds and entry format:
 [IMPROVEMENT-BUDGET.md](../subagent-brief/IMPROVEMENT-BUDGET.md#-the-repair-lane--blocked-is-not-the-same-as-undecidable).
 
 Note which side of the line does the work here: the **file boundary** never decides it — only whether

@@ -11,15 +11,15 @@ import {
 import { basename, join } from "node:path";
 
 /**
- * On-disk storage for a registered delegate context, keyed by session id.
- * A session's record lives at `.pi/loop/delegate-<sessionId>.json` under the
+ * On-disk storage for a registered renewal context, keyed by session id.
+ * A session's record lives at `.pi/renew/renewal-<sessionId>.json` under the
  * project's cwd. A replacement session has a different id, so it adopts its
  * predecessor's record by renaming the file onto its own id.
  */
-export const DELEGATE_STATE_VERSION = 1;
+export const RENEWAL_STATE_VERSION = 1;
 
 /** Records whose mtime is older than this are reaped; 14 days. */
-export const DELEGATE_STATE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+export const RENEWAL_STATE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * Cap on parent-chain hops when resolving a record through `parentSession`
@@ -27,7 +27,7 @@ export const DELEGATE_STATE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
  */
 const PARENT_WALK_MAX_HOPS = 20;
 
-export interface DelegateState {
+export interface RenewalState {
   version: number;
   /** Free text stored verbatim; its meaning belongs entirely to the caller. */
   context: string;
@@ -40,12 +40,12 @@ export interface DelegateState {
   lastReason?: string;
 }
 
-export function getDelegateStateDir(cwd: string): string {
-  return join(cwd, ".pi", "loop");
+export function getRenewalStateDir(cwd: string): string {
+  return join(cwd, ".pi", "renew");
 }
 
-export function getDelegateStatePath(cwd: string, sessionId: string): string {
-  return join(getDelegateStateDir(cwd), `delegate-${sessionId}.json`);
+export function getRenewalStatePath(cwd: string, sessionId: string): string {
+  return join(getRenewalStateDir(cwd), `renewal-${sessionId}.json`);
 }
 
 /**
@@ -88,13 +88,13 @@ function readParentSession(sessionFile: string): string | undefined {
  * keys, never both, never neither. Contents are untouched — in particular
  * `restartCount` is not incremented here; that belongs to the restart.
  */
-function adoptDelegateState(
+function adoptRenewalState(
   cwd: string,
   predecessorId: string,
   currentId: string
 ): boolean {
-  const src = getDelegateStatePath(cwd, predecessorId);
-  const dest = getDelegateStatePath(cwd, currentId);
+  const src = getRenewalStatePath(cwd, predecessorId);
+  const dest = getRenewalStatePath(cwd, currentId);
   if (!existsSync(src)) return false;
   // The current session's own record always wins; never overwrite it.
   if (existsSync(dest)) return false;
@@ -103,7 +103,7 @@ function adoptDelegateState(
 }
 
 /**
- * Resolves the delegate state record to read for a session, adopting a
+ * Resolves the renewal state record to read for a session, adopting a
  * predecessor's record when the session was replaced (and its id changed).
  *
  * Order: (1) a record under the current id; (2) adoption from
@@ -111,18 +111,18 @@ function adoptDelegateState(
  * `parentSession` chain in session file headers; (4) nothing — a missing
  * record is a normal state, not an error.
  */
-export function resolveDelegateState(
+export function resolveRenewalState(
   cwd: string,
   sessionId: string,
   previousSessionFile?: string
-): DelegateState | null {
-  const ownPath = getDelegateStatePath(cwd, sessionId);
-  if (existsSync(ownPath)) return readDelegateState(cwd, sessionId);
+): RenewalState | null {
+  const ownPath = getRenewalStatePath(cwd, sessionId);
+  if (existsSync(ownPath)) return readRenewalState(cwd, sessionId);
 
   if (previousSessionFile !== undefined) {
     const predecessorId = sessionIdFromSessionFile(previousSessionFile);
-    if (predecessorId !== sessionId && adoptDelegateState(cwd, predecessorId, sessionId)) {
-      return readDelegateState(cwd, sessionId);
+    if (predecessorId !== sessionId && adoptRenewalState(cwd, predecessorId, sessionId)) {
+      return readRenewalState(cwd, sessionId);
     }
   }
 
@@ -135,9 +135,9 @@ export function resolveDelegateState(
     if (!currentFile || seen.has(currentFile)) break;
     seen.add(currentFile);
     const ancestorId = sessionIdFromSessionFile(currentFile);
-    const ancestorRecord = getDelegateStatePath(cwd, ancestorId);
-    if (existsSync(ancestorRecord) && adoptDelegateState(cwd, ancestorId, sessionId)) {
-      return readDelegateState(cwd, sessionId);
+    const ancestorRecord = getRenewalStatePath(cwd, ancestorId);
+    if (existsSync(ancestorRecord) && adoptRenewalState(cwd, ancestorId, sessionId)) {
+      return readRenewalState(cwd, sessionId);
     }
     currentFile = readParentSession(currentFile);
   }
@@ -146,65 +146,65 @@ export function resolveDelegateState(
 }
 
 /**
- * Reads a session's delegate state record. Returns null when no record
+ * Reads a session's renewal state record. Returns null when no record
  * exists. Throws — naming the file — on corrupt JSON or on a missing or
  * unknown `version`; no silent defaulting, coercion or migration.
  */
-export function readDelegateState(
+export function readRenewalState(
   cwd: string,
   sessionId: string
-): DelegateState | null {
-  const path = getDelegateStatePath(cwd, sessionId);
+): RenewalState | null {
+  const path = getRenewalStatePath(cwd, sessionId);
   if (!existsSync(path)) return null;
   let raw: string;
   try {
     raw = readFileSync(path, "utf-8");
   } catch (err) {
-    throw new Error(`Cannot read delegate state at ${path}: ${err}`);
+    throw new Error(`Cannot read renewal state at ${path}: ${err}`);
   }
   let parsed: { version?: number };
   try {
     parsed = JSON.parse(raw) as { version?: number };
   } catch {
-    throw new Error(`Delegate state at ${path} is not valid JSON`);
+    throw new Error(`Renewal state at ${path} is not valid JSON`);
   }
-  if (parsed.version !== DELEGATE_STATE_VERSION) {
+  if (parsed.version !== RENEWAL_STATE_VERSION) {
     throw new Error(
-      `Delegate state at ${path} has version ${String(parsed.version)}, expected ${DELEGATE_STATE_VERSION}`
+      `Renewal state at ${path} has version ${String(parsed.version)}, expected ${RENEWAL_STATE_VERSION}`
     );
   }
   return {
-    version: DELEGATE_STATE_VERSION,
-    context: (parsed as DelegateState).context,
+    version: RENEWAL_STATE_VERSION,
+    context: (parsed as RenewalState).context,
     // Absent toggles default to true; an explicit stored value is kept.
     includeSummary:
-      (parsed as DelegateState).includeSummary === undefined
+      (parsed as RenewalState).includeSummary === undefined
         ? true
-        : (parsed as DelegateState).includeSummary,
+        : (parsed as RenewalState).includeSummary,
     includeNextSteps:
-      (parsed as DelegateState).includeNextSteps === undefined
+      (parsed as RenewalState).includeNextSteps === undefined
         ? true
-        : (parsed as DelegateState).includeNextSteps,
-    restartCount: (parsed as DelegateState).restartCount,
-    registeredAt: (parsed as DelegateState).registeredAt,
-    lastReason: (parsed as DelegateState).lastReason,
+        : (parsed as RenewalState).includeNextSteps,
+    restartCount: (parsed as RenewalState).restartCount,
+    registeredAt: (parsed as RenewalState).registeredAt,
+    lastReason: (parsed as RenewalState).lastReason,
   };
 }
 
 /**
- * Atomically persists a session's delegate state: the JSON is serialised to
+ * Atomically persists a session's renewal state: the JSON is serialised to
  * a temp file in the same directory, then renamed over the record. Rename
  * within one directory is atomic, so a restart mid-write can never leave a
  * half-written record (whereas writing the target in place can).
  */
-export function writeDelegateState(
+export function writeRenewalState(
   cwd: string,
   sessionId: string,
-  state: DelegateState
+  state: RenewalState
 ): void {
-  const dir = getDelegateStateDir(cwd);
+  const dir = getRenewalStateDir(cwd);
   mkdirSync(dir, { recursive: true });
-  const path = getDelegateStatePath(cwd, sessionId);
+  const path = getRenewalStatePath(cwd, sessionId);
   const suffix = `${process.pid}-${Math.random().toString(36).slice(2, 10)}`;
   const tmp = `${path}.tmp-${suffix}`;
   writeFileSync(tmp, JSON.stringify(state, null, 2) + "\n", "utf-8");
@@ -227,10 +227,10 @@ export function writeDelegateState(
  * Never rolls the counter back: this function is called and its write lands before the
  * restart is even attempted, and no caller is expected to undo it on a later failure
  * (D-H15). Over-counting on a failed restart fails in the safe direction; under-counting
- * does not, since it would let a replayed delegate context under-report how many restarts
+ * does not, since it would let a replayed renewal context under-report how many restarts
  * have already happened against an outer loop's budget.
  *
- * Throws exactly what `readDelegateState` throws (corrupt JSON, missing/unknown `version`),
+ * Throws exactly what `readRenewalState` throws (corrupt JSON, missing/unknown `version`),
  * naming the file; this function adds no try/catch of its own — each caller decides what a
  * throw here means for it (the command handler reports it via `reportRestartFailure`; the
  * `compact` path lets it propagate as an ordinary tool error, since nothing has been
@@ -240,11 +240,11 @@ export function claimRestartOrdinal(
   cwd: string,
   sessionId: string,
   reason: string
-): { ordinal: number; record: DelegateState | null } {
-  const record = readDelegateState(cwd, sessionId);
+): { ordinal: number; record: RenewalState | null } {
+  const record = readRenewalState(cwd, sessionId);
   const ordinal = (record?.restartCount ?? 0) + 1;
   if (record) {
-    writeDelegateState(cwd, sessionId, {
+    writeRenewalState(cwd, sessionId, {
       ...record,
       restartCount: ordinal,
       lastReason: reason,
@@ -254,31 +254,31 @@ export function claimRestartOrdinal(
 }
 
 /**
- * Deletes `delegate-*.json` records whose mtime is older than
- * DELEGATE_STATE_MAX_AGE_MS. Never deletes the current session's own
- * record, never touches non-matching files (`.pi/loop/` also holds
+ * Deletes `renewal-*.json` records whose mtime is older than
+ * RENEWAL_STATE_MAX_AGE_MS. Never deletes the current session's own
+ * record, never touches non-matching files (`.pi/renew/` also holds
  * caller-supplied handover documents), and never throws.
  */
-export function reapDelegateStates(cwd: string, currentSessionId: string): void {
-  const dir = getDelegateStateDir(cwd);
+export function reapRenewalStates(cwd: string, currentSessionId: string): void {
+  const dir = getRenewalStateDir(cwd);
   if (!existsSync(dir)) return;
   const now = Date.now();
   let entries: string[];
   try {
     entries = readdirSync(dir);
   } catch {
-    // e.g. `.pi/loop` exists but is not a directory. A sweep is housekeeping;
+    // e.g. `.pi/renew` exists but is not a directory. A sweep is housekeeping;
     // it must never take the session down with it.
     return;
   }
   for (const entry of entries) {
     const base = basename(entry);
-    if (!base.startsWith("delegate-") || !base.endsWith(".json")) continue;
-    const sessionId = base.slice("delegate-".length, -".json".length);
+    if (!base.startsWith("renewal-") || !base.endsWith(".json")) continue;
+    const sessionId = base.slice("renewal-".length, -".json".length);
     if (sessionId === currentSessionId) continue;
     try {
       const mtime = statSync(join(dir, entry)).mtimeMs;
-      if (now - mtime > DELEGATE_STATE_MAX_AGE_MS) {
+      if (now - mtime > RENEWAL_STATE_MAX_AGE_MS) {
         unlinkSync(join(dir, entry));
       }
     } catch {

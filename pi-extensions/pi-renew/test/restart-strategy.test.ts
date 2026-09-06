@@ -21,9 +21,9 @@ function makeMockPi(commands: any[] = []): any {
 }
 
 // O25: the "compact" branch — taken by the first two tests below, the omitted-strategy
-// default and the explicit "compact" — now reads/writes the delegate-state record, so
+// default and the explicit "compact" — now reads/writes the renewal-state record, so
 // makeMockCtx needs a real cwd. A temp dir, not process.cwd(), so a stray
-// .pi/loop/delegate-*.json can never touch the developer's own real state (handover F37).
+// .pi/renew/renewal-*.json can never touch the developer's own real state (handover F37).
 // File-scoped, not per-describe: makeMockCtx is a plain function outside any describe.
 let cwd: string;
 
@@ -50,15 +50,15 @@ function makeMockCtx() {
   };
 }
 
-function getDelegateToAgentTool(mockPi: any) {
+function getRenewSessionTool(mockPi: any) {
   return mockPi.registerTool.mock.calls[0][0];
 }
 
-describe("delegate_to_agent strategy selector (decisions 2, 3)", () => {
+describe("renew_session strategy selector (decisions 2, 3)", () => {
   it("omitting strategy takes the compact path — ctx.compact is called (the default, asserted here and only here)", async () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockCtx();
 
     await tool.execute(
@@ -76,7 +76,7 @@ describe("delegate_to_agent strategy selector (decisions 2, 3)", () => {
   it("strategy: 'compact' explicitly takes the same path", async () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockCtx();
 
     await tool.execute(
@@ -94,7 +94,7 @@ describe("delegate_to_agent strategy selector (decisions 2, 3)", () => {
   it("strategy: 'new-session' calls sendUserMessage and never ctx.compact", async () => {
     const mockPi = makeMockPi([{ name: "pi-renew", source: "extension", sourceInfo: {} }]);
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockCtx();
 
     await tool.execute(
@@ -112,7 +112,7 @@ describe("delegate_to_agent strategy selector (decisions 2, 3)", () => {
   it("an unrecognised strategy throws from execute, naming both valid values", async () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
-    const tool = getDelegateToAgentTool(mockPi);
+    const tool = getRenewSessionTool(mockPi);
     const mockCtx = makeMockCtx();
 
     let message = "";
