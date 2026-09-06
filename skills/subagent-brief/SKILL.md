@@ -24,8 +24,14 @@ the detail.* Point at the task file and spec sections and require them to be rea
 restate their content — a restatement drifts and the sub-agent cannot tell which one wins.
 
 **Find the executor before you write the brief.** A brief is written *for* whoever runs it, so settle
-that first, in this order: a **`subagent` tool** (from `pi-subagents`) — the best case, a real child
-session per unit; else **this session**, continuing with the brief as its own instructions. The absence of a runner does not
+that first. Probe the **`subagent` tool** (from `pi-subagents`) by *calling* it, not by guessing — a
+`subagent`-* skill or an MCP / skills listing does not prove the tool is loaded:
+
+    subagent({ action: "list" })
+
+If it returns an agent roster, you have a runner: a real child session per unit, launched as
+`subagent({ agent: "worker", task: <the brief> })`. If the call is unavailable, fall back to **this
+session**, continuing with the brief as its own instructions. The absence of a runner does not
 cancel the brief: a cold executor and a same-session executor need the same decisions fixed, and the
 brief is what makes the result checkable by someone who was not there. Name the executor you found at
 the top of the brief, so the review knows what it is reviewing.
@@ -121,7 +127,8 @@ sections, in order:
 7. **Commands** — the gate, verbatim, with log paths. Include the gate profile's known trap
    signatures and say **"if you see this, report it rather than fixing it"**.
 8. **Constraints** — the allowed-files table, the do-not-touch list, the git constraint, the
-   anti-weakening clause, the improvement budget, house style, comment density.
+   anti-weakening clause, the no-subagents constraint, the improvement budget, house style, comment
+   density.
 9. **Report-back** — impose [REPORT-CONTRACT.md](REPORT-CONTRACT.md) by reference or by pasting it.
 
 **The allowed-files table** lists every file the sub-agent may create or modify, plus: *"if you
@@ -152,6 +159,15 @@ non-vacuity probe wastes the review.
 > so in your report. Anything larger, anything touching a shared helper or a test's intent, and
 > anything that would change a fixed decision, the public surface, a dependency or the protocol:
 > **report it with a sketch, do not do it.** Full lanes: `IMPROVEMENT-BUDGET.md`.
+
+**The no-subagents constraint** — required in *every* brief, because the executor is a **leaf**:
+
+> Do not launch any sub-agent — do not call `subagent`, do not spawn a child, do not hand any part
+> of this unit, however small, to another agent. You inherit the `subagent` tool from the session that
+> launched you; do not use it. Do the whole work here and report back from here.
+
+The review re-checks it: a report that arrived out of a nested run, or a diff you cannot place in this
+one child, is a finding.
 
 ## Phase 3 — Set up for review before you launch
 

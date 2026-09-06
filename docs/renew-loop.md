@@ -439,6 +439,11 @@ still happen; what is lost without a child runner is the executor's context isol
 A brief written for a cold executor is worth writing even when you are the executor — it is what makes
 the result checkable by someone who was not there, and after a restart, that is you.
 
+Delegation runs **one level deep**. This session is the only thing that calls `subagent` — it launches a
+`worker` (and optionally a `reviewer`) — and both children are **leaves** that do their work and report
+back. A child inherits the `subagent` tool from its fork of this session, so the brief forbids further
+delegation outright, and the review checks it.
+
 Why it is opt-in: it costs a restart and two turns per unit, and most work does not need it. Reach for
 it when the units carry acceptance criteria you want verified, when each unit should land as its own
 reviewable commit, when a unit is big enough that analysing and executing it in one context degrades
