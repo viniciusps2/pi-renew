@@ -154,8 +154,13 @@ repair changes no design. Where it would, that is a decision and the loop stops 
 ### Where the handover lives
 
 The handover is the run: it holds the work, the slug, the mode, the turn count, the stop condition,
-what the last turn did, what is still open, and the one thing the next turn does first. Everything else
-about a turn is thrown away by the restart.
+what the last turn did, what is still open, and the one thing the next turn does first — then, in its
+own sections, the state a cold session would otherwise have to rediscover: the decisions already in
+force and what they rule out, the decisions still pending with their options, the improvements a turn
+found and postponed with the sketch that makes each actionable, and the traps — what not to re-attempt,
+what looks wrong but is deliberate, which repairs are still standing. Every section is present every
+turn, saying `— none` when it is empty, because a heading that says "none" proves the turn considered
+it. Everything else about a turn is thrown away by the restart.
 
 Naming one is optional. Point the loop at a task list and say nothing about state, and it looks for the
 handover that task list already has before making a new one — so a second `/renew-loop` at the same openspec
@@ -217,10 +222,17 @@ Naming a path explicitly always wins and skips the search, which is what `/renew
 
 The handover is rewritten at the end of every turn, and a rewrite in place would destroy the only record
 of what the run looked like a turn ago. Nothing else keeps it: the restart throws the session's context
-away on purpose, and the commits carry the work rather than the reasoning behind it. So the rewrite is
-always two moves — the current file is moved to `handover-<slug>-old-<n>.md` beside it, `n` counting up
-from the highest archive already there, and the new handover is written at the canonical path with an
-`Archive:` line naming what was just moved.
+away on purpose, and the commits carry the work rather than the reasoning behind it. So the end of a
+turn is three moves, not one. The turn first **finishes** the outgoing handover — appending a
+`## Turn <n> record` with the narrative nothing else holds: what it did and in what order, what it
+tried that failed and why it moved on, the review's findings in full with the verdict on each, the
+repairs and improvements with the reasoning that put them in their lane, and what it believed at the
+start of the turn that turned out to be false. Then the file **moves** to `handover-<slug>-old-<n>.md`
+beside it, `n` counting up from the highest archive already there. Only then is the new handover
+written, with an `Archive:` line naming what moved.
+
+The order is the mechanism: the record lands in the file that is leaving, so the archive is a real log
+of the run, and the next session opens a file that is entirely about what is ahead of it.
 
 That happens every turn, unconditionally, so a twenty-turn run leaves `-old-1` through `-old-20` next to
 the live handover and you can read back what any turn said it was doing. Archives are never deleted,
@@ -236,17 +248,18 @@ hundred kilobytes is a real outcome of a long OpenSpec run, and it fails twice o
 has to mine the paragraph that says where the loop actually is out of nineteen that no longer decide
 anything, and reading it spends the fresh context the restart was there to buy.
 
-There is no line limit, and nothing is triggered by length. The archives already hold the history, so
-the rewrite answers one question instead — what would the next session be unable to act without — and
-keeps only that: the header block, the `Archive:` line, exactly where in the flow the run is (in
-brief-and-review, which half of which unit, and the brief and notes paths), the last turn or two of
-progress as the no-progress guard's baseline, everything still open — units, pending decisions,
-carried-forward improvements — and the traps: what to avoid, what not to re-attempt, what looks wrong
-but is deliberate.
+There is no line limit, and nothing is triggered by length. What still acts on the next session goes in
+at the length it needs — a postponed improvement keeps its sketch, a decision keeps its reason, a trap
+keeps the symptom and the command that produced it — because compressing those to one-liners is how a
+long run loses what it learned. What stays out is the narrative of finished work: how the last five
+turns went, checks that passed and stayed passing, decisions already applied, notes about code that no
+longer exists.
 
-Everything else stays in the archives: finished units' narratives, checks that passed and stayed
-passing, decisions already made and applied. Nothing is lost — it is one `cat` away, by name — and the
-turn's report says so, so a handover that got shorter is never mistaken for state that went missing.
+That history is in the archives, in full, one `cat` away by name — which is what makes it safe to leave
+out of the live file. A handover that grows because the run has more live state is working correctly;
+one that grows because nothing is ever dropped from `## Progress` is not, and the turn's report names
+the archive whenever the handover came out much shorter, so state left behind on purpose is never
+mistaken for state that went missing.
 
 ### When the task list has no checkboxes
 
@@ -572,11 +585,12 @@ Say `commit the handover` in the request if you want it tracked.
 
 **`handover-<slug>-old-1.md`, `-old-2.md`, … keep appearing.**
 One per turn, by design: the handover is archived under that name before it is rewritten, so the record
-of what each turn said survives a rewrite that would otherwise overwrite it. The live handover is always
-the un-suffixed one, and its `Archive:` line names the newest archive. If the handover also got much
-shorter, that is the rewrite keeping only what the next sessions need — where the run is, what is open,
-the pending decisions and the traps. The archives keep the rest, and there is no length at which any of
-this switches on: the handover is cut to what is needed on every turn.
+of what each turn said survives a rewrite that would otherwise overwrite it. Each archive ends with the
+`## Turn <n> record` the turn appended before moving it — the narrative of that turn, in full — so the
+archives are the run's log rather than a pile of stale snapshots. The live handover is always the
+un-suffixed one, and its `Archive:` line names the newest archive. If the handover also got much
+shorter, that is the rewrite dropping finished narrative it no longer needs to carry; there is no
+length at which any of this switches on.
 
 **It created a second handover for what I thought was the same work.**
 The `Work:` line of the existing handover names something different from what this run resolved.

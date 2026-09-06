@@ -222,7 +222,7 @@ $ cd <repo> && pi
 TURN n  (fresh context)
 ├─ read the handover — and only what it points at
 ├─ do ONE unit of work · run its check · tick the list · commit
-├─ archive the handover, then rewrite it: what happened, what's next, turn n of N
+├─ record the turn in the handover · archive it · write the next one
 └─ stop, or RESTART into turn n+1
 ```
 
@@ -231,17 +231,18 @@ the extension. **No skills, no sub-agents, no spec tool** — this is the plain 
 
 Turn 1 registers `/renew-loop <your request, verbatim>` as the renewal context, before reading
 anything, so a session lost before the first restart resumes by replaying that string. Then every
-turn: resolve the task list and the handover, do one unit, check it, tick it, commit it, archive the
-handover and rewrite it, and call `renew_session`. The fresh session receives the whole protocol
-again with your request inside it, reads the restart ordinal off the provenance line to know which
-turn it is in, reads the handover, and does the next unit.
+turn: resolve the task list and the handover, do one unit, check it, tick it, commit it, record the
+turn in the handover and archive it, write the next handover, and call `renew_session`. The fresh
+session receives the whole protocol again with your request inside it, reads the restart ordinal off
+the provenance line to know which turn it is in, reads the handover, and does the next unit.
 
 The conversation is thrown away every turn; **the handover file is the only thing that survives.**
 It lives in `.pi/renew-loop/`, which the first run creates with a `.gitignore` of `*`, so the run's
-state never lands in the commits the work produces. The rewrite never overwrites: each turn first moves
-the current handover to `handover-<slug>-old-<n>.md` beside it, so every turn's handover is still there
-to read afterwards — which is what lets the new one hold just what the next session needs, at whatever
-length that takes, instead of accumulating history it cannot drop.
+state never lands in the commits the work produces. The rewrite never overwrites: the turn finishes the
+outgoing handover with its own narrative — what it tried, what it rejected, what the review found — and
+moves it to `handover-<slug>-old-<n>.md` before writing the next one. So the archives are the run's log,
+and the live handover is free to hold only what is still ahead: what is open, the decisions in force and
+still pending, the improvements postponed with their sketches, and the traps.
 
 **Everything after `/renew-loop` is free text — there are no flags:**
 

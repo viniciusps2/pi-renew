@@ -55,7 +55,9 @@ Anything green-shaped that fails a green condition, and specifically:
 - a test's *intent* changed, as opposed to a test moved or renamed;
 - anything you would need to re-baseline the gate to justify.
 
-Report it as: what you would change, why, the sketch, and what it would cost. Do not start it.
+Report it as: what you would change, why, the sketch, and what it would cost. Do not start it. It goes
+to the handover's `## Carried improvements`, sketch included — a 🟡 recorded without one is an opinion
+the next session cannot act on.
 
 ### 🔴 Red — a decision that is not yours
 
@@ -110,9 +112,10 @@ One block per deferred 🔴, in the handover, so the queue survives the cold sta
 **Cost if deferred:** <what gets more expensive the longer it waits — or "none, it keeps">.
 ```
 
-Carry unresolved `DP-` entries forward into every later handover. Resolving one is a **user
-decision**, and it becomes its own unit in the task list — never a silent fold-in to an unrelated
-batch.
+Carry unresolved `DP-` entries forward into every later handover, and index each one with a single line
+in `## Carried improvements`, so the improvement queue reads in one place while the decision itself
+stays where decisions are answered. Resolving one is a **user decision**, and it becomes its own unit in
+the task list — never a silent fold-in to an unrelated batch.
 
 ---
 
@@ -251,9 +254,10 @@ past the question above: they are separate gates and both have to pass.
 - the repair grows to roughly the size of the unit itself. At that point it **is** a unit: stop, and
   let it be scheduled as one.
 
-### The `## Repairs` entry
+### The `## Traps` entry
 
-One block per repair, in the handover, beside `## Decisions pending`:
+One block per repair, in the handover's `## Traps` section — a standing repair is exactly what the next
+turn must not undo or re-attempt:
 
 ```markdown
 ### RP-<n>. <one-line title> — 🔧 repaired during <unit>, <date>

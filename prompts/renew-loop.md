@@ -190,18 +190,39 @@ Next:        <the one concrete thing the next turn does first>
 Archive:     <the newest handover-<slug>-old-<n>.md — the turn before this one; empty on turn 1>
 
 ## Progress
-<what this turn changed, as facts — files, commits, checks run and their result>
+<what is done, as facts — files, commits, checks run and their result. The last turn or
+ two in detail; earlier turns one line each, since the archives hold their narrative>
 
 ## Open
 <what is left; for a task list, which units are still open right now — the no-progress
  guard has nothing to compare against next turn otherwise>
 
+## Decisions in force
+<D-<n>: decisions already taken that still constrain what comes next — the choice, the
+ reason, and what it rules out. A decision the next turn cannot see, it re-litigates>
+
 ## Decisions pending
-<anything you deferred rather than guessed at, with the options>
+<DP-<n>: what you deferred rather than guessed at — the options, the recommendation and
+ what deferring costs. A deferred 🔴 improvement is a DP entry too>
+
+## Carried improvements
+<🟡 proposals with the sketch that makes them actionable, and one line per 🔴 pointing at
+ its DP entry: what would change, where it would land, why the turn that found it did
+ not do it>
+
+## Traps
+<what not to re-attempt and why, what looks wrong but is deliberate, what bit the last
+ turn, and RP-<n> repairs whose reason still applies — each with what it changed for the
+ units not yet reached>
 
 ## Notes
-<gotchas the next turn would otherwise rediscover>
+<conventions, commands, paths, environment — anything else the next session needs>
 ```
+
+**Every section, every turn.** One with nothing in it keeps its heading and says `— none`: a heading
+that says "none" proves the turn considered it, while a missing heading is indistinguishable from a
+forgotten one. `D-`, `DP-` and `RP-` numbers run for the life of the run and are never reused, so an
+entry can be referred to by name in a commit message, a brief, or the next turn's report.
 
 ### Archive it before you rewrite it
 
@@ -211,48 +232,50 @@ the commits, where the request asks for commits at all, carry the work and not t
 produced it. A handover overwritten in place cannot answer *what did the last turn say it was doing*,
 which is the first question anyone asks of a run that went sideways.
 
-So the rewrite is always two moves, in this order, on **every** turn:
+So the end of a turn is always three moves, in this order, on **every** turn:
 
-1. **Archive the current handover.** Move it to `handover-<slug>-old-<n>.md` beside it, where `n` is one
-   higher than the highest already there — `handover-add-auth-old-1.md`, then `-old-2.md`, one per turn
-   (`git mv` only in a tracked state directory). Never delete an archive, never write into one, never
-   renumber the existing ones, and never adopt one as the handover.
-2. **Write the new handover** at the canonical path, in the shape above, with an `Archive:` line naming
+1. **Finish the outgoing handover.** Append a `## Turn <n> record` to the file you are about to archive
+   — this turn's narrative, which nothing else in the loop keeps: what you did and in what order; what
+   you tried that did not work, and why you abandoned it rather than fixed it; the review's findings in
+   full, each with its verdict and whether you fixed it or left it; the repairs and improvements with
+   the reasoning that placed them in their lane; the checks you ran and the output that decided them;
+   and anything you believed about this codebase at the start of the turn that turned out to be false.
+   It is written for someone reconstructing the run later, not for the next turn, so it is the one
+   place in this protocol where length is not a consideration. Write it while you still remember the
+   turn — this is the last moment that context exists.
+2. **Archive it.** Move the file to `handover-<slug>-old-<n>.md` beside it, where `n` is one higher than
+   the highest already there — `handover-add-auth-old-1.md`, then `-old-2.md`, one per turn (`git mv`
+   only in a tracked state directory). Never delete an archive, never write into one after it has
+   moved, never renumber the existing ones, and never adopt one as the handover.
+3. **Write the new handover** at the canonical path, in the shape above, with an `Archive:` line naming
    the file you just moved.
 
-Nothing is measured or decided first: archive, then write, on the turn that stops the run and the turn
-cut short by the high-context reminder as much as on any other. The first turn of a run has no file to
-archive yet — create the handover and leave `Archive:` empty.
+The order is the whole mechanism. The record goes into the file that is **leaving**, never into the one
+you are about to write, and the move happens before the new file exists — so the history lands where it
+is kept and the next session opens a file about what is ahead of it. Nothing is measured or decided
+first: record, archive, write, on the turn that stops the run and the turn cut short by the
+high-context reminder as much as on any other. The first turn of a run has nothing to record or archive
+yet — create the handover and leave `Archive:` empty.
 
-Because the previous turn is now safe on disk, the new handover is written **for the next session**
-rather than as an edit of the last one: carry what that session needs, and leave the rest in the archive.
+### Write it forward, and write it out
 
-### Write only what the next sessions need
+The new handover is forward-looking, but it is not a summary. Everything that still acts on the next
+session goes in **at the length it needs**: a 🟡 keeps the sketch that makes it
+actionable, a decision keeps the reason that would otherwise be re-argued, a trap keeps the symptom and
+the command that produced it, a DP keeps its options and its recommendation. Compressing those into
+one-liners is how a long run loses what it learned — the next session reads "deferred an improvement to
+the publisher" and has to redo the thinking that produced it, if it even notices there was any.
 
-Carrying forward is where a handover goes wrong: each turn keeps the last turn's progress "for context",
-and by turn twenty the file is mostly finished history — a reader with no memory of the session has to
-mine the one paragraph that says where the loop is out of nineteen that no longer decide anything. A
-handover that large also costs the fresh context it was supposed to save.
+What stays out is the narrative of finished work: how the last five turns went, checks that passed and
+stayed passing, decisions already applied and no longer live, notes about code that no longer exists,
+approaches abandoned for reasons that no longer bite. All of that is in the archives, in full, one
+`cat` away by name — which is exactly what makes it safe to leave out here.
 
-**There is no line budget to fill.** Length is not the test and never triggers anything: the archive
-already holds the history, so the only question the rewrite answers is *what would the next session be
-unable to act without*. Ask it of every line, on turn two as much as on turn twenty, and keep:
-
-- the header block in full — it is the run's identity and bounds, and every turn re-reads it — with the
-  `Archive:` line naming the file you just moved;
-- **exactly where in the flow the run is**: the step this run is at, and in brief-and-review mode which
-  half of which unit, with the brief and reviewer-notes paths when one is mid-unit;
-- what the last turn or two changed, as facts. The no-progress guard compares against `## Progress`, so
-  it needs a real baseline — not the whole history, but not an empty section either;
-- everything still **open**: the units not yet ticked, `## Decisions pending` in full, and any 🟡 or 🔴
-  improvement carried forward;
-- the **traps**: gotchas the next turn would otherwise rediscover, what it must not re-attempt, what
-  looks wrong but is deliberate, and any repair whose reason still applies.
-
-Everything else stays behind: finished units' narratives, checks that passed and stayed passing,
-decisions already made and applied, notes about code that no longer exists. The archives hold them, and
-a turn that genuinely needs one reads it by name — nothing is lost by leaving it out, and a handover
-kept to what is needed is the whole point of writing one.
+**There is no line budget, in either direction.** Length is not the test and never triggers anything.
+The test is whether the next session, reading only this file, could act without rediscovering something
+this turn already knew — and, in the other direction, whether a line it reads would change what it
+does. A handover that grows because the run genuinely has more live state is working correctly; one
+that grows because nothing is ever dropped from `## Progress` is not.
 
 Archiving is bookkeeping, not the turn's work: it never consumes a unit and is never a reason to stop.
 The archives are ignored exactly like the handover, so a plain `mv` finishes it — there is nothing to
@@ -295,13 +318,17 @@ Check it once, on the first turn of a run:
    exists to prevent, because nothing later re-examines it.
 4. **Close the unit** in the task list, where there is one — tick its checkbox. Nothing else does
    this, and the exit test and the no-progress guard both read it. With no task list, the handover's
-   `## Open` section is what they read instead, so keep it honest.
+   `## Open` section is what they read instead, so keep it honest. Anything you settled on the way
+   that constrains a later unit — an interface you picked, a convention you followed, a direction you
+   ruled out — is a `D-` entry in `## Decisions in force`, with the reason: a decision the next turn
+   cannot see is one it re-litigates, usually the other way.
 5. **Commit**, if the request asks for commits: the turn's work and the task-list tick. The handover
    and everything beside it are ignored, so they stay out of it — unless the request asked for the
    state to be tracked, in which case the handover update goes in the same commit. Push only if the
    request asks for that too.
-6. **Archive the handover, then rewrite it** to the shape above, with this turn's number and a `Next:`
-   line that the next session could act on cold. The archive comes first, every turn, as above.
+6. **Record, archive, rewrite** — append this turn's `## Turn <n> record` to the outgoing handover,
+   move it to its archive name, then write the new handover to the shape above, with this turn's
+   number and a `Next:` line the next session could act on cold. All three, every turn, as above.
 
 **A blocked turn is not automatically a stop.** First prove the blocker is not your own work:
 reproduce it on something referencing none of this turn's changes, or on a clean tree, and name the
@@ -311,7 +338,9 @@ dependency or a protocol, or **weakens** a test — a deleted assertion, a loose
 a simplified double. Replacing an assertion with an equal or stronger one is not a weakening. **None
 of them → repair it and carry on**, as its own `fix:` commit before the turn's, re-running the check
 after. **Any of them → that is a decision: stop and report it.** Record either outcome in the
-handover. Never take the third option of calling the turn done against a reduced bar.
+handover — a repair as an `RP-` entry in `## Traps`, a stop as a `DP-` entry in `## Decisions pending`
+— and the reasoning behind it in the turn record. Never take the third option of calling the turn done
+against a reduced bar.
 
 **Two cases look like neither.** A defect found *before* anything runs — the approach the handover
 recorded cannot meet the unit's own criteria — is proved by naming the mechanism that would break and
@@ -356,8 +385,8 @@ Check these in order, before doing anything else with the turn's result:
    - `nextSteps` — read the handover at `<path>` and do what its `Next:` line says.
 
 **High-context variant.** If the extension's high-context reminder fires mid-turn, that is not your
-decision to restart — follow the reminder instead: stop work, archive the handover and rewrite it as
-above — complete, including its `Next:` line — then call `renew_from_handover` with `handoverPath`
+decision to restart — follow the reminder instead: stop work, do the record–archive–rewrite as above
+— every section, including the `Next:` line — then call `renew_from_handover` with `handoverPath`
 pointing at that file. Do not call `renew_session` for this path; `renew_from_handover` calls it
 internally with the right reason and nextSteps. A turn cut short this way still counts against the
 budget.
@@ -367,9 +396,9 @@ budget.
 Selected by the request, or forced by Step 1 when `set_renewal_context` is unavailable. Run the turns
 in sequence in one session, with no `renew_session` call of your own, still stopping on the same
 conditions and the same budget — counted here from the handover's `Turn:` line, since there is no
-restart ordinal to read. Archive and rewrite the handover every turn anyway — it is the record of what
-happened, not restart bookkeeping — and be aware that the context you were supposed to shed is still
-with you: keep each turn's reading as tight as if it were about to be thrown away.
+restart ordinal to read. Record, archive and rewrite the handover every turn anyway — it is the record
+of what happened, not restart bookkeeping — and be aware that the context you were supposed to shed is
+still with you: keep each turn's reading as tight as if it were about to be thrown away.
 
 If the high-context reminder fires anyway, follow it: write the handover and call
 `renew_from_handover`. It restarts the session even though nothing else here does — it is the
@@ -459,21 +488,27 @@ review's yardstick, not skill bookkeeping, so they get written either way:
    look. Where a `subagent` tool exists, a `reviewer` child is a useful second opinion — an addition
    to your own review of the diff, never a replacement for it.
 7. Minor findings — fix them here. Major findings — write a new brief for what remains and run the
-   unit again (back to 3). The **same unit escalating twice is a hard stop**.
+   unit again (back to 3). The **same unit escalating twice is a hard stop**. Every finding goes into
+   this turn's `## Turn <n> record` — the ones you fixed, the ones you dismissed and why, and what the
+   reviewer notes asked for that the diff answered. This is the turn that produces the most that is
+   worth keeping and the least that survives on its own: the review happens once, in a context that is
+   about to be thrown away.
 8. **Blocked?** Step 3's repair rule decides it, in full: prove the defect is pre-existing, take the
    shortest correct repair if it changes no design, stop and ask if it would. The repair may live
    outside the unit's allowed files — files belong to units, the design belongs to the spec — and
    lands as its own `fix:` commit *before* the unit's. Record it in the handover.
-   `IMPROVEMENT-BUDGET.md` in `subagent-brief` carries the same rule at length where that skill is
-   installed.
+   Record it as an `RP-` entry in `## Traps`, with what it changed for the units not yet reached, and
+   put the evidence that proved it pre-existing in the turn record. `IMPROVEMENT-BUDGET.md` in
+   `subagent-brief` carries the same rule at length where that skill is installed.
 9. **Triage the improvements** — anything *better* rather than *wrong*:
    **🟢** behaviour-preserving, inside the brief's allowed files, ≤ ~15 net lines, no exported
    signature or dependency change, existing tests unchanged → apply it, and commit it **separately**
    from the unit, re-running the check after.
-   **🟡** bigger, a new abstraction, a shared helper, a test's intent → record it in the handover with
-   a sketch; do not start it.
+   **🟡** bigger, a new abstraction, a shared helper, a test's intent → record it in
+   `## Carried improvements` with the sketch that makes it actionable; do not start it.
    **🔴** would change a fixed decision, the public surface, a dependency or the protocol → never
-   applied in the turn. Put it in `## Decisions pending`, name it in your report line, and carry on — an
+   applied in the turn. Put it in `## Decisions pending` as a `DP-` entry, index it with one line in
+   `## Carried improvements`, name it in your report line, and carry on — an
    opportunity is never on the unit's critical path, so deferring one cannot make the unit wrong. A
    correctness finding, an ambiguity about intent, or a second escalation still stops the loop.
 10. Tick the unit, archive and rewrite the handover, and commit as in Step 3 — a 🔧 repair its own
