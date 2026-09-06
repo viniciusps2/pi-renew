@@ -135,6 +135,14 @@ exercised since it landed. The repair almost always lives in files belonging to 
 ticked, or to one not yet reached. **That is not a reason to stop.** The allowed-files table exists
 to keep a review surface readable, not to make a broken tree somebody else's problem.
 
+**A red gate is not the only shape.** The same triage runs when nothing has executed yet: the analyse
+half, sizing a unit, finds that the approach the handover recorded cannot work — it would fail the
+unit's own acceptance criteria, or it contradicts the design document the unit implements. There is
+no failing command to paste, so step 1 takes its other form: name the mechanism that would break and
+the source that settles it, held to the same standard of evidence. Steps 2 and 3 are unchanged. A
+plan defect is still a defect the unit did not introduce, and finding it before execution is not a
+reason to stop where finding it after would not have been.
+
 ### Step 1 — Prove it is pre-existing, before repairing anything
 
 An agent that "unblocks" its own bug has laundered a correctness finding, which is a hard stop. So
@@ -190,6 +198,34 @@ and the options you can see. This is the line the lane must never cross.
 The question is never "is there more than one way to do this", it is "do the ways disagree about the
 design".
 
+### When the repair lands in a unit already ticked
+
+The lane already expects the files — "the repair almost always lives in files belonging to a unit
+already ticked". What needs its own rule is the sharper case: the repair changes that unit's
+**acceptance evidence** rather than only its code. An assertion an earlier unit pinned now describes
+behaviour the design says is wrong.
+
+**The tick stands.** A repair never re-opens a unit, un-ticks it, or amends its commit. It lands in
+front of the current unit as its own `fix:`, exactly like any other repair, and the earlier unit's
+history keeps meaning what its review said it meant.
+
+**One extra question, and it is the whole decision:** read what fixed the assertion you are about to
+change.
+
+- the earlier unit's **brief or the design fixed it** — the pinned value was a decision somebody made
+  → trigger 1, the repair *is* the decision, stop;
+- it merely **recorded the behaviour of the day**, because nothing consumed the value yet → it is
+  incidental, and updating it to track the corrected behaviour is part of the repair.
+
+Name which of the two in the `RP-` entry, with the line of the brief or design that settles it. "I
+could not find one" is not the fallback answer: an assertion whose provenance you cannot establish is
+treated as fixed, and you stop.
+
+**Changing an assertion is not the same as weakening one.** Trigger 6 is *weaken* — a deleted
+assertion, a loosened matcher, a `skip`, a simplified double. Replacing one with an assertion that is
+equal or stronger, tracking behaviour the design specifies, does not trip it. That does not get you
+past the question above: they are separate gates and both have to pass.
+
 ### Step 3 — Land it as a repair, not as part of the unit
 
 - **The smallest change that removes the blockage.** Not the neighbourhood's cleanup, not the
@@ -226,6 +262,7 @@ One block per repair, in the handover, beside `## Decisions pending`:
 **Root cause:** <where it actually is, and which unit landed it>.
 **Repair:** <the change>, in `<files outside the allowed-files table>`. Commit `<sha>`.
 **Design-neutral because:** <the six triggers, answered>.
+**Touches a ticked unit's evidence:** <which assertions, and what fixed them — or "none">.
 **Affects later units:** <whose scope this shrank or changed — or "none">.
 ```
 

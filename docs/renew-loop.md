@@ -147,8 +147,9 @@ decision is due, when the same step fails twice, or when a commit or push fails.
 that turns that off; only the budget above is something you actively set.
 
 Being **blocked** is not automatically one of them. A turn stopped by a defect it did not introduce —
-a broken build, a duplicate registration, a fixture an earlier unit left wrong — gets repaired and the
-loop carries on, even when the repair lives outside the work at hand, provided the shortest correct
+a broken build, a duplicate registration, a fixture an earlier unit left wrong, or a plan the last turn
+recorded that cannot meet the unit's own criteria — gets repaired and the loop carries on, even when
+the repair lives outside the work at hand or in a unit already ticked, provided the shortest correct
 repair changes no design. Where it would, that is a decision and the loop stops for it.
 
 ### Where the handover lives

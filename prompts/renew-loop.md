@@ -290,10 +290,18 @@ Check it once, on the first turn of a run:
 reproduce it on something referencing none of this turn's changes, or on a clean tree, and name the
 first failure in the chain — if that is your own code, it is a correctness finding and the loop stops.
 Then ask whether the **shortest** correct repair changes a design decision, a public surface, a
-dependency, a protocol or a test's strength. **None of them → repair it and carry on**, as its own
-`fix:` commit before the turn's, re-running the check after. **Any of them → that is a decision: stop
-and report it.** Record either outcome in the handover. Never take the third option of calling the
-turn done against a reduced bar.
+dependency or a protocol, or **weakens** a test — a deleted assertion, a loosened matcher, a `skip`,
+a simplified double. Replacing an assertion with an equal or stronger one is not a weakening. **None
+of them → repair it and carry on**, as its own `fix:` commit before the turn's, re-running the check
+after. **Any of them → that is a decision: stop and report it.** Record either outcome in the
+handover. Never take the third option of calling the turn done against a reduced bar.
+
+**Two cases look like neither.** A defect found *before* anything runs — the approach the handover
+recorded cannot meet the unit's own criteria — is proved by naming the mechanism that would break and
+the source that settles it, instead of by a failing command; the triage is otherwise unchanged. And a
+repair inside a unit **already ticked** leaves the tick alone, landing in front of the current unit as
+its own `fix:`; where it changes that unit's assertions, read what fixed them first — pinned by a
+brief or the design is a decision, merely recording the behaviour of the day is not.
 
 ## Step 4 — Stop, or restart into the next turn
 
@@ -392,6 +400,12 @@ in the turn's report, so a run that fell back is visible rather than mysterious.
 6. Update the handover: `Mode: brief-and-review`, the unit, its tier, the brief and notes paths, the
    units still open, and `Next: execute <unit>`.
 7. Restart with `reason: renew-loop-analysis` — same call shape as Step 4.6 otherwise.
+
+**If the analysis finds the plan itself defective** — the approach the handover recorded would fail
+the unit's own acceptance criteria — that is Step 3's repair rule, not a stop by default. Prove it
+against the design rather than against a failing command, then run the same triage. Where it clears,
+the brief you write is the corrected one and the correction lands as its own `fix:` in the execute
+half; where it does not, stop with the options.
 
 Write the brief and notes beside the handover as `brief-<unit-slug>.md` and `review-<unit-slug>.md`,
 slug from the unit's number or title (`5.4` → `5-4`). The handover's directory already carries the
