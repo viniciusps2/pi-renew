@@ -161,6 +161,9 @@ Tick each only when a test you can name proves it.
   are fine, and creating a git repo inside a temp-dir test fixture is fine. The caller owns git.
 - **Do NOT edit** `<plan file>`, `<task file>`, or `<handover/tracking doc>`. The caller ticks the
   boxes after review.
+- **No sub-agents.** You are a leaf: do not call the `subagent` tool, do not spawn a child, and do
+  not hand any part of this unit, however small, to another agent. Do the whole work here and report
+  back from here.
 - **No weakening.** Do not delete or relax an existing assertion, do not disable, skip or ignore a
   test (`.skip`/`.todo`, `@Disabled`, `@Ignore`, `@pytest.mark.skip`/`xfail`, bats `skip`), do not
   loosen a strict matcher to a permissive one, and do not substitute a wildcard where a literal

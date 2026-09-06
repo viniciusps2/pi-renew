@@ -434,6 +434,11 @@ a run that infers "no runner" from either of those silently loses the executor's
   the brief, the reviewer notes and the two-turn split are what it is for, and they all still happen.
   What you lose is the executor's context isolation, so keep the reading tight.
 
+**Delegation runs exactly one level deep.** This session is the only thing that calls `subagent`, and
+only to launch a `worker` (and, optionally, a `reviewer`). A child is a **leaf**: it does the unit,
+reports back, and never calls `subagent` again. A child is a fork of this session and inherits its
+`subagent` tool, so the brief forbids further delegation explicitly, and the review checks it.
+
 Record which one you found in the handover (`Runner: subagent tool` / `this session`) and name it
 in the turn's report, so a run that fell back is visible rather than mysterious. If a previous turn
 used the tool successfully and the probe now fails, re-probe before deciding — a runner that appears
@@ -470,7 +475,9 @@ review's yardstick, not skill bookkeeping, so they get written either way:
 
 - **The brief** — the unit and its tier; exactly what to change and what not to; the files it may
   touch; the source documents to read first (pointed at, never restated); the decisions already fixed,
-  so the executor invents none; the checks that must pass; and what its report back must say.
+  so the executor invents none; the checks that must pass; **the constraint that it is a leaf — it may
+  not launch a sub-agent of its own, which the brief states outright**; and what its report back must
+  say.
 - **The reviewer notes** — what "done" means for this unit, in checkable statements; the checks to
   re-run yourself rather than believe; the specific ways this unit could be wrong while its tests stay
   green; and the checks you are deliberately not asking for, with the reason.

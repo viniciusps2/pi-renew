@@ -76,6 +76,9 @@ git diff --stat                   # and `git diff --stat HEAD` if the agent comm
 - **Were tracking documents edited?** A ticked box you did not tick is an unverified assertion —
   re-verify it or untick it.
 - **Leftover scaffolding?** Probe files, temp fixtures, debug logging, commented-out code.
+- **Did the child delegate?** The brief forbids a sub-agent from launching a sub-agent of its own;
+  a report or diff you cannot place in this one child (a second agent's voice, a nested run's log) is
+  a finding.
 
 ## Phase 2 — Re-run the gate yourself
 
@@ -289,5 +292,7 @@ worth recording even when the technical claim holds up.
 - **Reviewing every batch at the same depth.** The full battery on a documentation change burns the
   budget the next batch needed; the light pass on a protocol change ships the defect. Size it in
   Phase 0, and write down what you skipped.
+- **Trusting a report that came from a nested run.** A report that does not add up to one session's
+  work is the wrong unit.
 - **Accepting an applied improvement because it looks tidy.** No acceptance criterion covers it. It
   is the one part of the diff nobody was asked to prove.
