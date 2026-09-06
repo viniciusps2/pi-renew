@@ -126,7 +126,6 @@ want, and the protocol translates it into its parameters.
 | When to stop | `until the e2e suite is green`, `stop when the migration runs clean` — **optional** |
 | How long to run | `max 20 turns` — **optional**; the default budget is **10** |
 | Where state lives | `handover .pi/renew-loop/add-auth/handover-add-auth.md` — **optional**; say nothing and the loop finds or creates one |
-| How much history a handover keeps | `handover max 300 lines` — **optional**; past **500 lines** the rewrite carries only the essentials |
 | Keep state in git | `commit the handover` — **optional**; by default `.pi/renew-loop/` ignores itself |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
@@ -229,7 +228,7 @@ written into, renumbered, or adopted as a handover by a later run. They are igno
 `.pi/renew-loop/`, so the move is a plain `mv` and lands in that turn's commit only when you asked for
 the state to be tracked.
 
-### When the handover gets too long
+### What the rewrite keeps
 
 Rewriting is not the same as carrying forward, and each turn tends to keep the last turn's progress "for
 context": twenty turns of that leaves a file which is mostly finished history. A handover well past a
@@ -237,17 +236,17 @@ hundred kilobytes is a real outcome of a long OpenSpec run, and it fails twice o
 has to mine the paragraph that says where the loop actually is out of nineteen that no longer decide
 anything, and reading it spends the fresh context the restart was there to buy.
 
-So the loop measures the handover each turn. Past **500 lines** — or whatever `handover max N lines`
-said — the rewrite keeps only what the next sessions need: the header block, the `Archive:` line,
-exactly where in the flow the run is (in brief-and-review, which half of which unit, and the brief and
-notes paths), the last turn or two of progress as the no-progress guard's baseline, everything still
-open — units, pending decisions, carried-forward improvements — and the traps: what to avoid, what not
-to re-attempt, what looks wrong but is deliberate.
+There is no line limit, and nothing is triggered by length. The archives already hold the history, so
+the rewrite answers one question instead — what would the next session be unable to act without — and
+keeps only that: the header block, the `Archive:` line, exactly where in the flow the run is (in
+brief-and-review, which half of which unit, and the brief and notes paths), the last turn or two of
+progress as the no-progress guard's baseline, everything still open — units, pending decisions,
+carried-forward improvements — and the traps: what to avoid, what not to re-attempt, what looks wrong
+but is deliberate.
 
 Everything else stays in the archives: finished units' narratives, checks that passed and stayed
 passing, decisions already made and applied. Nothing is lost — it is one `cat` away, by name — and the
-turn's report says so, so a handover that suddenly got shorter is never mistaken for state that went
-missing.
+turn's report says so, so a handover that got shorter is never mistaken for state that went missing.
 
 ### When the task list has no checkboxes
 
@@ -575,9 +574,9 @@ Say `commit the handover` in the request if you want it tracked.
 One per turn, by design: the handover is archived under that name before it is rewritten, so the record
 of what each turn said survives a rewrite that would otherwise overwrite it. The live handover is always
 the un-suffixed one, and its `Archive:` line names the newest archive. If the handover also got much
-shorter, it passed 500 lines and the rewrite kept only what the next sessions need — where the run is,
-what is open, the pending decisions and the traps; the archive keeps the rest. Say `handover max N
-lines` in the request to cut back at a different size.
+shorter, that is the rewrite keeping only what the next sessions need — where the run is, what is open,
+the pending decisions and the traps. The archives keep the rest, and there is no length at which any of
+this switches on: the handover is cut to what is needed on every turn.
 
 **It created a second handover for what I thought was the same work.**
 The `Work:` line of the existing handover names something different from what this run resolved.

@@ -28,7 +28,6 @@ Map it onto the parameters below by intent — there are no flags.
 | `max N turns`, `max N restarts` | the turn budget — **default 10** |
 | `handover <path>` | where the handover lives |
 | nothing about a handover | Step 2 finds this work's own, or creates it |
-| `handover max N lines`, `rotate the handover at N lines` | how long the handover may grow before the rewrite carries only the essentials — **default 500 lines** |
 | `commit the handover`, `track the handover` | keep the run's state in git — by default it is ignored |
 | `ask me between turns`, `check in each turn` | pause after each turn instead of restarting |
 | `one turn only`, `do one unit and stop` | a budget of 1 |
@@ -40,7 +39,7 @@ Map it onto the parameters below by intent — there are no flags.
 
 Never guess a missing parameter. Step 2 either resolves it by a rule that gives the same answer every
 turn, or stops and asks. The exceptions are the ones with safe defaults: an unstated budget is **10**,
-an unstated handover threshold is **500 lines**, and an unstated mode is the plain loop.
+and an unstated mode is the plain loop.
 
 A run needs at least one way to end. A stop condition, a task list that can empty, or both — and the
 budget behind them either way. If the request gives none of those, the budget alone bounds the run,
@@ -98,9 +97,9 @@ that could answer differently on turn 4 than on turn 3 hands the fresh session s
   handover carries the plan instead. **Never invent a task list**: point at one, or work from the
   goal and record the steps in the handover.
 - **The handover** — below. It is the only thing that survives the restart.
-- **The bounds.** The stop condition in the request, the turn budget (default 10) and the handover's
-  length threshold (default 500 lines). Write them into the handover on the first turn and read them
-  back from it afterwards, so a resumed run keeps the bounds it started with.
+- **The bounds.** The stop condition in the request and the turn budget (default 10). Write them into
+  the handover on the first turn and read them back from it afterwards, so a resumed run keeps the
+  bounds it started with.
 - **Make a task list tickable**, if there is one — below.
 - **The restart primitive.** `set_renewal_context` and `renew_session` present → restart between
   turns. Absent → No-restart mode. That is the only capability the default loop cares about; the
@@ -228,15 +227,16 @@ archive yet — create the handover and leave `Archive:` empty.
 Because the previous turn is now safe on disk, the new handover is written **for the next session**
 rather than as an edit of the last one: carry what that session needs, and leave the rest in the archive.
 
-### Keep the rewrite short
+### Write only what the next sessions need
 
 Carrying forward is where a handover goes wrong: each turn keeps the last turn's progress "for context",
 and by turn twenty the file is mostly finished history — a reader with no memory of the session has to
 mine the one paragraph that says where the loop is out of nineteen that no longer decide anything. A
 handover that large also costs the fresh context it was supposed to save.
 
-So measure the file each turn, and **over 500 lines** — or the threshold the request named — the rewrite
-keeps only what the next sessions actually need:
+**There is no line budget to fill.** Length is not the test and never triggers anything: the archive
+already holds the history, so the only question the rewrite answers is *what would the next session be
+unable to act without*. Ask it of every line, on turn two as much as on turn twenty, and keep:
 
 - the header block in full — it is the run's identity and bounds, and every turn re-reads it — with the
   `Archive:` line naming the file you just moved;
@@ -249,17 +249,17 @@ keeps only what the next sessions actually need:
 - the **traps**: gotchas the next turn would otherwise rediscover, what it must not re-attempt, what
   looks wrong but is deliberate, and any repair whose reason still applies.
 
-A non-default threshold goes in `## Notes`, so a run resumed with `continue from <path>` keeps the bound
-it started with. Everything else stays behind: finished units' narratives, checks that passed and stayed
-passing, decisions already made and applied, notes about code that no longer exists. The archives hold
-them, and a turn that genuinely needs one reads it by name — nothing is lost by cutting the handover
-back; the cost is all in *not* cutting it.
+Everything else stays behind: finished units' narratives, checks that passed and stayed passing,
+decisions already made and applied, notes about code that no longer exists. The archives hold them, and
+a turn that genuinely needs one reads it by name — nothing is lost by leaving it out, and a handover
+kept to what is needed is the whole point of writing one.
 
 Archiving is bookkeeping, not the turn's work: it never consumes a unit and is never a reason to stop.
 The archives are ignored exactly like the handover, so a plain `mv` finishes it — there is nothing to
 stage, and nothing to commit unless the request asked for the state to be tracked, where the move rides
-along with that turn's handover update. Name the archive in your report line whenever the rewrite left
-history behind, so a handover that shrank between turns is never mistaken for state that went missing.
+along with that turn's handover update. Name the archive in your report line whenever the handover came
+out noticeably shorter, so history you left behind on purpose is never mistaken for state that went
+missing.
 
 ### Making a task list tickable
 

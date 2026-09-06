@@ -240,7 +240,8 @@ The conversation is thrown away every turn; **the handover file is the only thin
 It lives in `.pi/renew-loop/`, which the first run creates with a `.gitignore` of `*`, so the run's
 state never lands in the commits the work produces. The rewrite never overwrites: each turn first moves
 the current handover to `handover-<slug>-old-<n>.md` beside it, so every turn's handover is still there
-to read afterwards.
+to read afterwards — which is what lets the new one hold just what the next session needs, at whatever
+length that takes, instead of accumulating history it cannot drop.
 
 **Everything after `/renew-loop` is free text — there are no flags:**
 
@@ -249,7 +250,6 @@ to read afterwards.
 | What to work on | `implement tasks.md`, the directory holding it, or just the goal |
 | When to stop | `until the e2e suite is green` — optional |
 | How long to run | `max 20 turns` — optional, **the default budget is 10** |
-| How much history a handover keeps | `handover max 300 lines` — optional, **the default is 500 lines** |
 | Keep the handover in git | `commit the handover` — optional; `.pi/renew-loop/` ignores itself by default |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
