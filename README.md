@@ -222,7 +222,7 @@ $ cd <repo> && pi
 TURN n  (fresh context)
 ├─ read the handover — and only what it points at
 ├─ do ONE unit of work · run its check · tick the list · commit
-├─ rewrite the handover: what happened, what's next, turn n of N
+├─ archive the handover, then rewrite it: what happened, what's next, turn n of N
 └─ stop, or RESTART into turn n+1
 ```
 
@@ -231,14 +231,16 @@ the extension. **No skills, no sub-agents, no spec tool** — this is the plain 
 
 Turn 1 registers `/renew-loop <your request, verbatim>` as the renewal context, before reading
 anything, so a session lost before the first restart resumes by replaying that string. Then every
-turn: resolve the task list and the handover, do one unit, check it, tick it, commit it, rewrite the
-handover, and call `renew_session`. The fresh session receives the whole protocol again with your
-request inside it, reads the restart ordinal off the provenance line to know which turn it is in,
-reads the handover, and does the next unit.
+turn: resolve the task list and the handover, do one unit, check it, tick it, commit it, archive the
+handover and rewrite it, and call `renew_session`. The fresh session receives the whole protocol
+again with your request inside it, reads the restart ordinal off the provenance line to know which
+turn it is in, reads the handover, and does the next unit.
 
 The conversation is thrown away every turn; **the handover file is the only thing that survives.**
 It lives in `.pi/renew-loop/`, which the first run creates with a `.gitignore` of `*`, so the run's
-state never lands in the commits the work produces.
+state never lands in the commits the work produces. The rewrite never overwrites: each turn first moves
+the current handover to `handover-<slug>-old-<n>.md` beside it, so every turn's handover is still there
+to read afterwards.
 
 **Everything after `/renew-loop` is free text — there are no flags:**
 
@@ -247,7 +249,7 @@ state never lands in the commits the work produces.
 | What to work on | `implement tasks.md`, the directory holding it, or just the goal |
 | When to stop | `until the e2e suite is green` — optional |
 | How long to run | `max 20 turns` — optional, **the default budget is 10** |
-| When the handover is archived | `handover max 300 lines` — optional, **the default is 500 lines** |
+| How much history a handover keeps | `handover max 300 lines` — optional, **the default is 500 lines** |
 | Keep the handover in git | `commit the handover` — optional; `.pi/renew-loop/` ignores itself by default |
 | Check in between turns | `ask me between turns` |
 | One turn only | `do one unit and stop` |
