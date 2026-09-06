@@ -27,6 +27,7 @@
   },
   "files": [
     "install.mjs",
+    "index.ts",
     "pi-extensions/pi-renew/*.ts",
     "pi-extensions/pi-renew/package.json",
     "pi-extensions/pi-renew/README.md",
@@ -37,7 +38,7 @@
   ],
   "pi": {
     "extensions": [
-      "./pi-extensions/pi-renew/pi-renew.ts"
+      "./index.ts"
     ],
     "skills": [
       "./skills"
