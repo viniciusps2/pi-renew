@@ -11,13 +11,17 @@ A context window is a budget, and every long task spends it the same way: the tr
 useful part of it does not.
 
 - **On a hosted model, that transcript is the bill.** Every turn re-sends everything before it, so
-  the cost of a conversation grows with the square of its length. On turn 60 you are paying, again,
-  for exploration you finished on turn 12.
+  an uncached conversation costs roughly the square of its length. Prompt caching blunts that — a
+  cached prefix is billed at a fraction of the input rate — but only while the cache is warm: it
+  expires between turns, anything that changes near the top of the context invalidates the rest,
+  and even a hit still scales with how much you are carrying.
 - **A full window also works worse, not just dearer.** Recall degrades as the window fills; the
   constraint you stated forty messages ago now competes with everything said since.
-- **On a local model you simply run out.** A small window hits its ceiling constantly, and
-  compaction — another full pass over the whole transcript — runs on the same hardware that is
-  already the bottleneck.
+- **On a local model, context is memory you do not have.** A small window hits its ceiling
+  constantly, and compaction — another full pass over the whole transcript — runs on the same
+  hardware that is already the bottleneck. Worse, every token of live context sits in the KV cache
+  occupying VRAM: one bloated session can crowd out the concurrency your server was sized for,
+  where several short ones fit side by side.
 
 Auto-compaction is the usual answer, and it fails the same way everywhere it runs. A generic
 summarizer keeps the shape of the conversation and drops the specifics — the file that must not be
