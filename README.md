@@ -335,6 +335,7 @@ npm install -g @fission-ai/openspec     # spec-driven changes
 | [`prompts/renew-loop.md`](prompts/renew-loop.md) | **the `/renew-loop` protocol** — work → hand over → restart, until a stop condition or the turn budget |
 | [`skills/subagent-brief`](skills/subagent-brief) | brief-and-review only — writes the delegation brief |
 | [`skills/subagent-review`](skills/subagent-review) | brief-and-review only — reviews what came back |
+| [`index.ts`](index.ts) | a one-line re-export of the extension. The `pi` manifest points here so the Extensions list reads `viniciusps2/pi-renew` rather than the full path to the entry file |
 
 The first two rows are the whole default. The layering is the contract: `/renew-loop` calls the
 pieces below it, and none of them knows anything about loops, turns or reasons — which is what lets
