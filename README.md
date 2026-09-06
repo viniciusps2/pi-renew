@@ -58,8 +58,8 @@ pi install git:github.com/viniciusps2/pi-renew
 
 One entry in `~/.pi/agent/settings.json`; the `pi` manifest in [`package.json`](package.json)
 registers the extension, the `/renew-loop` prompt and the skills tree from it. Check with `/help` in
-a `pi` session — `/renew-loop`, `/pi-renew` and two `skill:` entries (`subagent-brief`,
-`subagent-review`) should be listed.
+a `pi` session — `/renew-loop`, `/pi-renew`, `/pi-renew-reminder-on`, `/pi-renew-reminder-off` and
+two `skill:` entries (`subagent-brief`, `subagent-review`) should be listed.
 
 Then turn on automatic high-context renewal, which is **off unless configured**, in
 `~/.pi/agent/pi-renew.json`:
@@ -72,6 +72,10 @@ Then turn on automatic high-context renewal, which is **off unless configured**,
 so it follows a model switch with no config change. Keep it well clear of `1`: `pi` runs its own
 compaction at `contextWindow - reserveTokens`, and a reminder that fires too late has no room left
 to write a handover.
+
+To silence the reminder for one session without editing the config, type `/pi-renew-reminder-off`;
+`/pi-renew-reminder-on` brings it back. The switch is in memory, so every other session — the
+replacement session a restart creates included — starts from `enabled` again.
 
 <details>
 <summary>Other ways to install</summary>

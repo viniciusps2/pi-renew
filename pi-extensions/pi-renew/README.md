@@ -342,6 +342,33 @@ switching to a model with a different window changes the effective threshold wit
 change needed. `renew_from_handover` is the tool that completes this flow — see
 [The three tools](#the-three-tools) above.
 
+### `/pi-renew-reminder-on` and `/pi-renew-reminder-off`
+
+Two commands switch the reminder for **the session you are in**, without touching
+`~/.pi/agent/pi-renew.json`:
+
+```text
+/pi-renew-reminder-off    # no reminder is injected, however high context goes
+/pi-renew-reminder-on     # reminders resume, from the configured threshold
+```
+
+Neither takes arguments, and each confirms the new state, the threshold it implies, and the fact that
+the config file was not written. Re-issuing the state you are already in is a no-op that says so.
+
+The switch lives in memory, which is what makes it session-scoped: every other session — including the
+**replacement** session a restart creates, which loads a fresh copy of the extension — starts from
+`highContextReminder.enabled` again. Silencing the reminder for one long turn therefore cannot silence
+it for tomorrow's work; to change the default, edit the config.
+
+`/pi-renew-reminder-on` also re-arms the milestone tracker, so the next evaluation above the threshold
+fires even if that same milestone already fired before the reminder was switched off. Without that, a
+session switched off at 116k and back on at 118k would sit silent until 125k, which reads as the
+command having done nothing.
+
+Two commands rather than one toggle: a toggle is ambiguous when nothing on screen says which state you
+are in, and `off` is a state you want to be able to re-assert without gambling that you switch it back
+on.
+
 ### Report-only sessions
 
 Some sessions can never be renewed, and telling one to restart produces the worst outcome available:
@@ -455,6 +482,8 @@ switching is disabled while the list stays empty.
 
 `highContextReminder.thresholdFraction` defaults to `0.85` — a fraction of the model's context window,
 read at evaluation time so it follows a model change — and `repeatEveryTokens` defaults to `1000`.
+`enabled` is the per-session *starting* state: `/pi-renew-reminder-off` and `/pi-renew-reminder-on`
+override it for the session you are in, and never write this file.
 
 Keep the fraction well clear of `1`. `pi` runs its own automatic compaction once usage passes
 `contextWindow - reserveTokens` (`reserveTokens` defaults to `16384`), so a reminder set too close to
@@ -478,7 +507,8 @@ Events subscribed:
 
 - `session_start` — adopts a predecessor's on-disk renewal-state record (if any) onto the new session
   id, and reaps stale records. Never sends a message or injects a prompt.
-- `context` — evaluates the high-context reminder threshold on every context evaluation.
+- `context` — evaluates the high-context reminder threshold on every context evaluation, unless the
+  session has switched the reminder off with `/pi-renew-reminder-off`.
 - `session_compact` — resets the reminder milestone tracker, so the reminder can fire again after a
   compaction.
 - `session_before_compact` — when a `compact`-strategy restart is pending, supplies the caller's own

@@ -3,6 +3,7 @@ import { Type, Static } from "typebox";
 import type { Model, UserMessage } from "@earendil-works/pi-ai";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  CONFIG_PATH,
   loadConfig,
   resolveModelId,
   getHighContextReminderConfig,
@@ -95,6 +96,15 @@ function getReminderMilestone(
   if (tokens == null || tokens <= thresholdTokens) return null;
   const reminderIndex = Math.floor((tokens - thresholdTokens) / repeatEveryTokens);
   return thresholdTokens + reminderIndex * repeatEveryTokens;
+}
+
+/**
+ * Renders a threshold fraction as a percentage for the toggle commands' confirmation
+ * line. `toFixed(1)` then `Number` so 0.85 reads as "85%" rather than "85.0%", and a
+ * fraction like 0.575 keeps its one meaningful decimal instead of being rounded away.
+ */
+function formatPercent(fraction: number): string {
+  return `${Number((fraction * 100).toFixed(1))}%`;
 }
 
 // D-H24: the reminder used to mint its own tmpdir() path and tell the model to write
@@ -257,6 +267,14 @@ export default function (pi: ExtensionAPI) {
   const highContextReminder = getHighContextReminderConfig(config);
   let pendingRenewal: PendingRenewal | null = null;
   let lastReminderMilestone: number | null = null;
+
+  // The session-scoped override of `highContextReminder.enabled`, driven by
+  // /pi-renew-reminder-on and /pi-renew-reminder-off. In memory by design: the toggle is
+  // for THIS session and never writes ~/.pi/agent/pi-renew.json, so the configured default
+  // is what every other session — including a replacement session, which gets a fresh
+  // extension instance — starts from. A user who silences the reminder for one long turn
+  // does not thereby silence it for tomorrow's work.
+  let reminderEnabled = highContextReminder.enabled;
 
   // Mirrors pendingRenewal exactly, for the new-session strategy: the tool sets this
   // immediately before dispatching the /pi-renew restart command, and the command
@@ -579,7 +597,7 @@ ${nextStepsAction}`;
   );
 
   pi.on("context", async (event, ctx) => {
-    if (!highContextReminder.enabled) return;
+    if (!reminderEnabled) return;
 
     const contextUsage = ctx.getContextUsage();
     // Absent usage, or a non-positive window, cannot yield a meaningful threshold —
@@ -1092,4 +1110,48 @@ If a task file or plan file exists, update it before handing off and name it in 
       }
     },
   });
+
+  // Two commands rather than one /pi-renew-reminder toggle: a toggle is ambiguous when
+  // nothing on screen says which state you are in, and "off" is a state you want to be
+  // able to re-assert — typing it twice must not switch the reminder back on.
+  //
+  // Deliberately notify-only: no sendPayload. The reminder is a message injected into the
+  // model's context, so announcing that it has been turned off by injecting a message into
+  // the model's context defeats the point of the off switch — and the on switch is a user
+  // decision the model has no part in either.
+  const registerReminderToggle = (commandName: string, enabled: boolean): void => {
+    pi.registerCommand(commandName, {
+      description: `${enabled ? "Enable" : "Disable"} the high-context reminder for this session only.`,
+      // No try/catch, unlike /pi-renew's handler: that one has real failure paths (a bad
+      // flag, a corrupt record, a refused newSession) worth reporting. Here the only thing
+      // that can throw is ctx.ui.notify itself, and catching it to call ctx.ui.notify again
+      // would report nothing. So the switch is flipped FIRST and the announcement comes
+      // last — a session whose UI cannot take the message still gets the state it asked for.
+      handler: async (
+        _args,
+        ctx: { ui: { notify: (message: string, type?: "info" | "warning" | "error") => void } }
+      ) => {
+        const wasEnabled = reminderEnabled;
+        reminderEnabled = enabled;
+
+        // Re-arm the milestone tracker when switching on. Without this, a session already
+        // past a milestone that fired before the reminder was switched off stays silent
+        // until context climbs a further `repeatEveryTokens` — which reads as the command
+        // not having worked. Switching off leaves the tracker alone: the handler above
+        // returns early while disabled, so nothing reads it until this re-arms it.
+        if (enabled) lastReminderMilestone = null;
+
+        const state = enabled
+          ? `ON — fires above ${formatPercent(highContextReminder.thresholdFraction)} of the context window, repeating every ${highContextReminder.repeatEveryTokens} tokens`
+          : "OFF — no reminder will be injected, however high context goes";
+        const scope = `This session only; ${CONFIG_PATH} is unchanged (default: ${highContextReminder.enabled ? "on" : "off"}).`;
+        const noop = wasEnabled === enabled ? " It was already in that state." : "";
+
+        ctx.ui.notify(`pi-renew: high-context reminder ${state}.${noop} ${scope}`, "info");
+      },
+    });
+  };
+
+  registerReminderToggle("pi-renew-reminder-on", true);
+  registerReminderToggle("pi-renew-reminder-off", false);
 }

@@ -22,9 +22,13 @@ describe("pi-renew command registration (task 2.4)", () => {
     const mockPi = makeMockPi();
     extensionFactory(mockPi);
 
-    expect(mockPi.registerCommand).toHaveBeenCalledTimes(1);
-    const [name, options] = mockPi.registerCommand.mock.calls[0];
-    expect(name).toBe("pi-renew");
+    // "Once" is about `pi-renew` itself, not about the extension's command count: the
+    // reminder toggles register alongside it (see reminder-toggle.test.ts).
+    const registered = mockPi.registerCommand.mock.calls.filter(
+      (call: any) => call[0] === "pi-renew"
+    );
+    expect(registered).toHaveLength(1);
+    const [, options] = registered[0];
     expect(typeof options.description).toBe("string");
     expect(options.description.length).toBeGreaterThan(0);
     expect(typeof options.handler).toBe("function");
