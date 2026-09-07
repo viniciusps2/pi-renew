@@ -345,7 +345,9 @@ five units. Registration, the handover, the bounds, the stop conditions and No-r
 unchanged.
 
 **The procedure is not in this file.** At the top of every turn of this mode, before Step 3, load
-`/skill:renew-loop-brief-and-review` and follow it: the runner probe, the analyse half, the execute
+`/skill:renew-loop-brief-and-review` and follow it: the runner probe, the **runner contract** (each unit
+is one `subagent` call — synchronous, fresh context, not batched, not async; a fork or an async run only
+on explicit request), the analyse half, the execute
 half, and the outlines to fall back on when the brief and review skills are absent.
 
 If that skill is not installed either, run the mode from this floor: analyse one unit and write a
@@ -354,8 +356,9 @@ read first, the decisions already fixed, the checks that must pass, that it is a
 launch a sub-agent of its own, and what its report must say) plus reviewer notes (what "done" means in
 checkable statements, the checks to re-run yourself rather than believe, the ways this unit could be
 wrong while its tests stay green, and the checks you are deliberately skipping, with the reason);
-restart with `reason: renew-loop-analysis`; then execute from the brief, review the diff against the
-notes — **the diff first, any report second** — and finish the turn as Step 3 says.
+restart with `reason: renew-loop-analysis`; then execute from the brief — one **synchronous, fresh-context**,
+un-batched `subagent` call (or in this session with no runner), the child a leaf — then review the diff
+against the notes — **the diff first, any report second** — and finish the turn as Step 3 says.
 
 ## Other optional lanes
 
@@ -364,7 +367,7 @@ Degrade, and say which lane you took — the handover's `Notes` is the place.
 
 | Lane | Present when | Then | Otherwise |
 |---|---|---|---|
-| **child runner** | a `subagent` tool | brief-and-review looks for it first and records what it found; the plain loop uses it only if the request asks to delegate the work | do the turn's work in this session |
+| **child runner** | a `subagent` tool | brief-and-review looks for it first and records what it found; each unit is one **synchronous, fresh-context, un-batched** call (a child leaf) — async or fork only on explicit request. The plain loop uses it only if the request asks to delegate the work | do the turn's work in this session |
 | **brief / review skills** | `/skill:subagent-brief`, `/skill:subagent-review` | brief-and-review uses them | the outlines in `/skill:renew-loop-brief-and-review` |
 | **OpenSpec** | `openspec --version` answers — or `npx openspec --version`, for a project-local install — and the repo has an `openspec/` directory | `openspec show <change>` / `status --change <change>` to resolve the change; `validate <change> --strict` in the check when a unit touches the spec delta; `archive <change>` **only if the request asked**, after the stop condition is met, as its own commit | the task list is a plain markdown checklist and the spec files are ordinary files |
 

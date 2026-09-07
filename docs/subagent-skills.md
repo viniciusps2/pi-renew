@@ -20,6 +20,27 @@ The skills themselves:
 
 ---
 
+## The runner contract
+
+The mode's launch rule is **one synchronous, fresh-context, un-batched `subagent` call per unit**, with
+async or fork only on explicit request. Each clause is a failure the mode exists to prevent:
+
+- **Sync, not batched.** A blocking run batched beside reads is not faster — the turn still waits on the
+  child — but it reads as "went off in the background and did other things", the one thing the caller was
+  told not to do. One call per turn makes the wait visible and the order (run, *then* review) real.
+- **Fresh, not fork.** The `worker`'s package default is a fork, so a child inherits the caller's
+  conversation — including any in-flight tool calls — and spends its first turn sorting orphans instead of
+  doing the unit. Fresh context makes the child a cold leaf that knows only the brief and the project —
+  the isolation the mode is for. A fork is a deliberate, user-requested choice.
+- **Not async by default.** A background run the caller then leaves is the unattended-review failure the
+  mode exists for: the caller waits so it can review the diff before the next turn. `async: true` is
+  opt-in, only when the user asked.
+
+The contract governs only *how the child is launched*. The brief still fixes every decision the executor
+would otherwise invent, and the review still re-runs the gate and reads the diff.
+
+---
+
 ## The brief
 
 ### The preflight sweeps

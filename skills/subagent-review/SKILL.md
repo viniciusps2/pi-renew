@@ -26,10 +26,10 @@ exactly where you already looked.
 
 The enumerated defect list is [REVIEW-CHECKLIST.md](REVIEW-CHECKLIST.md), tagged by tier; per-ecosystem
 commands are in [VERIFICATION-MENU.md](../subagent-brief/VERIFICATION-MENU.md) Part 4, and this project's
-real ones in its [GATE-PROFILE.md](../subagent-brief/GATE-PROFILE.md). Where a **`subagent` tool** exists,
-a fresh-context `reviewer` child (`subagent({ agent: "reviewer", task: <the diff and the notes> })`) is a
-second opinion on the diff — an addition to your own read of it, never a replacement. Rationale lives in
-the repo's `docs/subagent-skills.md`.
+real ones in its [GATE-PROFILE.md](../subagent-brief/GATE-PROFILE.md). Where a **`subagent` tool** exists, a **fresh-context** `reviewer` child — one call, its own turn, not
+async: `subagent({ agent: "reviewer", task: <the diff and the notes>, context: "fresh" })` — is a second
+opinion on the diff — an addition to your own read of it, never a replacement. Rationale lives in the
+repo's `docs/subagent-skills.md`.
 
 ## Phase 0 — Size the review, and read the diff before the report
 

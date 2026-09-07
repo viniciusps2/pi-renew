@@ -23,8 +23,8 @@ loses the executor's context isolation:
 
     subagent({ action: "list" })
 
-- **Returns an agent roster** (`worker`, `reviewer`, …) → the tool is present. Run each unit with
-  `subagent({ agent: "worker", task: <the brief> })`; a `reviewer` child is available as a second
+- **Returns an agent roster** (`worker`, `reviewer`, …) → the tool is present. Run each unit on **one**
+  `subagent` call per **The runner contract** below; a `reviewer` child is available as a second
   opinion on the diff.
 - **Unavailable or errors** → **no runner**: run the unit **in this same session**, from the brief,
   under the same restricted reading. The mode is not cancelled by the absence of a runner — the brief,
@@ -37,8 +37,27 @@ turn's runner is gone.
 
 **Delegation runs exactly one level deep.** This session is the only thing that calls `subagent`, and
 only to launch a `worker` (and optionally a `reviewer`). A child is a **leaf**: it does the unit,
-reports back, and never calls `subagent` again. A child inherits this session's `subagent` tool, so
-every brief forbids further delegation outright, and the review checks it.
+reports back, and never calls `subagent` again. Every child is launched in **fresh context** — it sees
+the brief and the project, never this session's conversation — and inherits this session's `subagent`
+tool, so every brief forbids further delegation outright, and the review checks it.
+
+## The runner contract
+
+Every delegated unit launches as **one** `subagent` call, with these defaults. Override a line only on
+an explicit user request — never to save a step:
+
+    subagent({ agent: "worker", task: <the brief>, context: "fresh" [, skill: "<name>"] })
+
+- **Sync.** It is the **only** tool call in its turn. Issue it alone, wait for the child to return, and
+  do nothing else until it does — no `read`/`bash`/… batched beside it.
+- **Fresh.** `context: "fresh"`: the child is a cold leaf that knows the brief (and project context), not
+  your conversation. The `worker`'s package default is a **fork**, so pass `"fresh"` explicitly; use
+  `context: "fork"` only if the user asked the child to read your reasoning. A fork carries your in-flight
+  calls into the child, where they resurface as orphans it wastes its first turn sorting out.
+- **Not async.** Never pass `async: true` unless the user asked for a background/async subagent.
+- **Skill.** Pass `skill: "<name>"` when the request names one (`with skill java`).
+
+A `reviewer` second opinion obeys the same contract: fresh, its own turn, sync.
 
 ## The analyse half
 
@@ -71,7 +90,9 @@ work's name, so these two do not repeat it.
 2. Read the brief.
 3. **Run the unit immediately**, in the runner the handover's `Runner:` line names — no further
    reading, no re-deriving context from the task list or the source tree:
-   - `subagent` tool → `subagent({ agent: "worker", task: <the brief> })`, waited for in-turn;
+   - `subagent` tool → **one** call, per **The runner contract** —
+     `subagent({ agent: "worker", task: <the brief>, context: "fresh" })`, the only call in its turn;
+     wait for the child before anything else;
    - this session → implement it yourself, from the brief. The restricted reading is *not* relaxed
      here: it is what the restart bought. If the brief is not enough to implement from, that is a
      defect in the brief — record it and re-analyse rather than reading around it.

@@ -21,10 +21,12 @@ content — a restatement drifts and the sub-agent cannot tell which one wins.
 
 **Find the executor first**, since the brief is written *for* whoever runs it. Probe the **`subagent`
 tool** (from `pi-subagents`) by *calling* it — `subagent({ action: "list" })` — not by reading a skills
-or MCP listing. A roster means a real child session per unit
-(`subagent({ agent: "worker", task: <the brief> })`); an unavailable call means **this session** runs
-the brief as its own instructions. The absence of a runner does not cancel the brief: both executors
-need the same decisions fixed. Name the executor at the top of the brief.
+or MCP listing. A roster means a real child session per unit, launched per the `renew-loop-brief-and-review`
+runner contract: **one** `subagent` call, **fresh context** (the child knows the brief, not your
+conversation), **its own turn**, **not async**:
+`subagent({ agent: "worker", task: <the brief>, context: "fresh" })`. An unavailable call means **this
+session** runs the brief as its own instructions. The absence of a runner does not cancel the brief: both
+executors need the same decisions fixed. Name the executor at the top of the brief.
 
 Companions: [BRIEF-TEMPLATE.md](BRIEF-TEMPLATE.md) (the structure), [REPORT-CONTRACT.md](REPORT-CONTRACT.md)
 (the seam with `subagent-review`), [VERIFICATION-MENU.md](VERIFICATION-MENU.md) (how much checking this
@@ -146,8 +148,10 @@ pure renderer wastes the run; a T3 part with no non-vacuity probe wastes the rev
 **The no-subagents constraint** — required in *every* brief, because the executor is a **leaf**:
 
 > Do not launch any sub-agent — do not call `subagent`, do not spawn a child, do not hand any part of this
-> unit, however small, to another agent. You inherit the `subagent` tool from the session that launched
-> you; do not use it. Do the whole work here and report back from here.
+> unit, however small, to another agent. You were launched with a **fresh context**: you were handed this
+> brief and the project context, and nothing from the caller's prior conversation — work from the brief.
+> You inherit the `subagent` tool from the session that launched you; do not use it. Do the whole work
+> here and report back from here.
 
 The review re-checks it: a report that arrived out of a nested run, or a diff you cannot place in this one
 child, is a finding.

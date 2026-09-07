@@ -445,8 +445,11 @@ the result checkable by someone who was not there, and after a restart, that is 
 
 Delegation runs **one level deep**. This session is the only thing that calls `subagent` — it launches a
 `worker` (and optionally a `reviewer`) — and both children are **leaves** that do their work and report
-back. A child inherits the `subagent` tool from its fork of this session, so the brief forbids further
-delegation outright, and the review checks it.
+back. Each runs on **one** `subagent` call, **synchronous** (the call is the only one in its turn), in
+**fresh context** — the child sees the brief and the project, never the caller's conversation — and **not
+async**. The `worker`'s package default is a fork, so the launch passes `context: "fresh"` explicitly; a
+fork (or an `async: true` background run) is used only if the user asked for it. A child inherits the
+`subagent` tool, so the brief forbids further delegation outright, and the review checks it.
 
 Why it is opt-in: it costs a restart and two turns per unit, and most work does not need it. Reach for
 it when the units carry acceptance criteria you want verified, when each unit should land as its own
