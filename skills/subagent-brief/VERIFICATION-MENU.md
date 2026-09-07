@@ -1,21 +1,16 @@
 # The verification menu
 
-Which check earns its cost, on which change. `subagent-brief` **declares** the tier and the per-part
-plan; `subagent-review` **runs** what the tier selects; in `/renew-loop`'s brief-and-review mode the
-brief carries the declaration from the analyse turn to the execute turn.
+Which check earns its cost, on which change. `subagent-brief` **declares** the tier and the per-part plan;
+`subagent-review` **runs** what the tier selects; in `/renew-loop`'s brief-and-review mode the brief carries
+the declaration from the analyse turn to the execute turn.
 
-It exists to prevent two opposite failures, both of which have happened here:
+It prevents two opposite failures: the whole battery on a two-line documentation change, so the review costs
+more than the work; and the battery skipped on a change that needed it, with **nothing in the record** saying
+which checks were skipped or why. **The tier is declared, not felt** — writing it down is what makes the
+second failure visible.
 
-- running the whole battery on a two-line documentation change, so the review costs more than the
-  work and the next batch inherits an exhausted budget;
-- skipping the battery on a change that needed it, with **nothing in the record** saying which checks
-  were skipped or why — so a later reader cannot tell a clean review from an absent one.
-
-The tier is **declared, not felt.** Writing it down is what makes the second failure visible.
-
-**Language-neutral.** Parts 1–3 name no toolchain: the checks are the same for TypeScript, Java,
-Python and shell, and only the command changes. Part 4 gives the command for each ecosystem — fill in
-the project's real ones in [GATE-PROFILE.md](GATE-PROFILE.md) and stop looking them up.
+**Language-neutral.** Parts 1–3 name no toolchain; Part 4 gives the command per ecosystem, and the project's
+real ones belong in [GATE-PROFILE.md](GATE-PROFILE.md).
 
 ---
 
@@ -28,13 +23,13 @@ the project's real ones in [GATE-PROFILE.md](GATE-PROFILE.md) and stop looking t
 | **T2 Behavioural** | Another component can observe the change | control flow, a guard or an error path changed; an existing assertion changed or deleted; an exported signature added or changed |
 | **T3 Stateful / protocol** | Can leave the system in a half-state | persisted records, handshakes, restart and crash paths, process lifecycle, concurrency, the filesystem |
 
-**Promote, never average.** A single T3 marker makes the whole batch T3, however small the rest of it
-is. "Mostly T1 with one file that writes to disk" is a T3 batch.
+**Promote, never average.** A single T3 marker makes the whole batch T3. "Mostly T1 with one file that
+writes to disk" is a T3 batch.
 
-**Effort budget.** The review should land near **10–20% of the child's run**. If the tier implies
-forty minutes of checks on a ten-line change, the tier is wrong — fix the tier, not the budget.
+**Effort budget.** The review should land near **10–20% of the child's run**. If the tier implies forty
+minutes of checks on a ten-line change, fix the tier, not the budget.
 
-**Declare it.** One line, in the brief and again in the reviewer's notes:
+**Declare it** — one line, in the brief and again in the reviewer's notes:
 
 ```
 Tier: T2 (behavioural — the new guard changes an error path; nothing persisted)
@@ -42,8 +37,8 @@ Checks: gate, lint delta, assertion strength, reviewer mutant ×2, changed-line 
 Skipped: crash-consistency (no persisted state), determinism (no async or shared state)
 ```
 
-And what it looks like when the batch really is trivial — the point of writing it down is that this
-is now a claim someone can dispute, not a silence:
+And when the batch really is trivial — the point of writing it down is that this is a claim someone can
+dispute, not a silence:
 
 ```
 Tier: T0 (mechanical — one README section; no code, no test, no behaviour)
@@ -51,8 +46,8 @@ Checks: gate, surface diff, staleness sweep (does the section describe something
 Skipped: everything else — there is no assertion, no branch and no string the code emits
 ```
 
-The reviewer may **raise** the tier freely on seeing the diff. Lowering it requires a written reason
-in the notes — that is the only way a skipped check stays auditable.
+The reviewer may **raise** the tier freely on seeing the diff. Lowering it requires a written reason — the
+only way a skipped check stays auditable.
 
 ---
 
@@ -91,43 +86,35 @@ Only the techniques that need one. The rest are a single command or a single que
 
 ### Reviewer-applied mutant
 
-The author names a kill-mutant per criterion, and a criterion with no nameable mutant self-identifies
-as vacuous — keep that. But an author's mutant tests the author's model of their own test. For the
-two or three **load-bearing** criteria, pick a *different* mutant yourself, from this menu:
+The author names a kill-mutant per criterion, and a criterion with no nameable mutant self-identifies as
+vacuous — keep that. But an author's mutant tests the author's model of their own test. For the two or three
+**load-bearing** criteria, pick a *different* mutant yourself:
 
-> negate a conditional · move a boundary (`<` → `<=`, ±1) · return a constant, `undefined` or an
-> empty collection · delete a guard clause · drop an `await` · swap two ordering keys · change one
-> character of a string literal · unbind a method from its receiver
+> negate a conditional · move a boundary (`<` → `<=`, ±1) · return a constant, `undefined` or an empty
+> collection · delete a guard clause · drop an `await` · swap two ordering keys · change one character of a
+> string literal · unbind a method from its receiver
 
-Apply it, run only the named test, confirm red, revert from the **working-tree snapshot** (see
-`subagent-review` Phase 3 — `git checkout --` reverts to HEAD and destroys the delegated change).
+Apply it, run only the named test, confirm red, revert from the **working-tree snapshot** (`subagent-review`
+Phase 3 — `git checkout --` reverts to HEAD and destroys the delegated change).
 
 ### Changed-line coverage
 
-A targeting tool, **never a percentage gate** — a percentage games itself, and the number is not the
-point. Run coverage scoped to the batch's files, list the new or changed lines and branches executed
-by **zero** tests, then apply the rule:
+A targeting tool, **never a percentage gate**. Run coverage scoped to the batch's files, list the new or
+changed lines and branches executed by **zero** tests, then apply the rule:
 
-> Every uncovered branch in new production code is either tested, or named in the report as
-> deliberately untested **with its reason**.
+> Every uncovered branch in new production code is either tested, or named in the report as deliberately
+> untested **with its reason**.
 
-That is what catches the ordinary shape of a thin batch: the happy path has a criterion and a test,
-the error path has neither.
+That is what catches the ordinary shape of a thin batch: the happy path has a criterion and a test, the error
+path has neither.
 
 ### Test-double fidelity
 
-**Ask: can this double express the failure at all?** A double whose shape cannot exhibit the defect
-class makes every test built on it blind, and the blindness is invisible from a green run.
-
-The story worth carrying, because it cost three sessions in this repo: every mocked collaborator was
-a plain object literal whose method was an **arrow function**. Arrow functions ignore the receiver,
-so calling the method *unbound* worked perfectly against the double and threw against the real
-prototype method. The offline gate was **26 files / 258 passed / 0 failed** with the live path
-completely dead, and the failure was blamed on a dependency version for three sessions.
-
-The general check, per double: **does it have the arity, the error paths, the laziness and the
-lifecycle of the thing it stands for?** Where the defect class is binding, identity, signature or
-lifecycle, the double must be built from the real type, not hand-shaped to fit the call site.
+**Ask: can this double express the failure at all?** A double whose shape cannot exhibit the defect class
+makes every test built on it blind, and the blindness is invisible from a green run. Per double: **does it
+have the arity, the error paths, the laziness and the lifecycle of the thing it stands for?** Where the
+defect class is binding, identity, signature or lifecycle, build the double from the real type rather than
+hand-shaping it to fit the call site.
 
 | Ecosystem | The blind double | The faithful one |
 |---|---|---|
@@ -136,20 +123,12 @@ lifecycle, the double must be built from the real type, not hand-shaped to fit t
 | Java | a hand-rolled stub, or a mock stubbed only for the happy path — cannot raise the checked exception the real collaborator declares | a Mockito mock of the real interface with the failure paths stubbed (`doThrow(...)`), and `verify` on the interaction |
 | Shell | a stub function that ignores its arguments and always `return 0` | a stub that asserts its arguments and reproduces the real exit codes, including the non-zero ones |
 
-The Python case is the exact analogue of the story above and is the commonest of the four: an
-unspecced `MagicMock` cannot fail the way the real object fails, so the test proves nothing about the
-call it is making.
-
 ### Real-entry-point test
 
 At least one test must drive the **production entry point** — the tool path, the command handler, the
-registered callback — not only the pure helper underneath it. F144's second, separately unrecorded
-defect was a throw swallowed by the runner's handler `catch`: the high-context reminder was silently
-never delivered on any live session, and no unit test could see it because no test entered through
-the runner.
-
-Corollary for review: **a swallowed exception in callback or handler code is a finding until proven
-deliberate.** Ask what the caller does with a failure raised by each callback the change adds.
+registered callback — not only the pure helper underneath it. Corollary for review: **a swallowed exception
+in callback or handler code is a finding until proven deliberate.** Ask what the caller does with a failure
+raised by each callback the change adds.
 
 | Ecosystem | What swallowing looks like |
 |---|---|
@@ -160,9 +139,8 @@ deliberate.** Ask what the caller does with a failure raised by each callback th
 
 ### Focus / skip marker sweep
 
-A focus marker left in a file silently reduces that file to one test **while still reporting green**,
-and a skip marker silently removes the only test proving the criterion. Both are invisible in a pass
-line that does not print totals you have baselined. One grep over the changed test files:
+A focus marker left in a file silently reduces that file to one test **while still reporting green**; a skip
+marker silently removes the only test proving the criterion. One grep over the changed test files:
 
 | Ecosystem | Grep for |
 |---|---|
@@ -175,7 +153,8 @@ This pairs with the numeric floor: the floor catches a suite that shrank, the sw
 
 ### Invariants over examples
 
-For a pure decision function, name the invariant class rather than adding a fourth example:
+For a pure decision function, name the invariant class rather than adding a fourth example — three examples
+cannot prove idempotence, and a two-line invariant test can.
 
 | Invariant | Reads as | Where it applies here |
 |---|---|---|
@@ -184,68 +163,58 @@ For a pure decision function, name the invariant class rather than adding a four
 | Order-independence | the verdict does not depend on arrival order | the supervision window |
 | Totality | never throws across the input domain | any classifier fed live events |
 
-Three examples cannot prove idempotence. A two-line invariant test can.
-
 ### Determinism and isolation
 
-Run the new test **alone**, then **three times**, then the suite in a **randomised order** — the
-commands are in Part 4. Order dependence and nondeterminism found here are cheap; found later they
-are misdiagnosed as real defects — the standing example in this repo is a timeout reported as "a slow
-endpoint".
-
-Where a test reads the clock, the locale or the timezone, run it once under a different `TZ` and
-locale too. That is one command and it catches the whole class.
+Run the new test **alone**, then **three times**, then the suite in a **randomised order** (commands in Part
+4). Order dependence found here is cheap; found later it is misdiagnosed as a real defect. Where a test reads
+the clock, the locale or the timezone, run it once under a different `TZ` and locale too — one command,
+whole class caught.
 
 ### Crash-consistency and at-least-once — T3 only
 
-Walk the menu, one line of evidence each: the process dies between the write and the acknowledgement
-· the same message is delivered twice · messages arrive out of order · new code reads absent or
-legacy state · old code reads new state · nothing cleans up after an abandoned run.
+Walk the menu, one line of evidence each: the process dies between the write and the acknowledgement · the
+same message is delivered twice · messages arrive out of order · new code reads absent or legacy state · old
+code reads new state · nothing cleans up after an abandoned run.
 
 ### Bidirectional spec trace
 
 Both directions, because each catches something the other cannot:
 
-- **requirement → test**: every normative requirement in the delta spec has a named test. Catches the
-  case the brief structurally cannot — *the brief dropped a requirement, so the child implemented the
-  brief perfectly.*
-- **test → requirement**: every new test traces to a requirement, or is declared as extra. A test
-  tracing to nothing is either scope creep or an undocumented decision.
+- **requirement → test**: every normative requirement in the delta spec has a named test. Catches the case
+  the brief structurally cannot — *the brief dropped a requirement, so the child implemented the brief
+  perfectly.*
+- **test → requirement**: every new test traces to a requirement, or is declared as extra. A test tracing to
+  nothing is either scope creep or an undocumented decision.
 
-This is also the mechanical guardrail for the improvement budget: an "improvement" that breaks a
-trace is a design change, not an improvement. See [IMPROVEMENT-BUDGET.md](IMPROVEMENT-BUDGET.md).
+This is also the mechanical guardrail for the improvement budget: an "improvement" that breaks a trace is a
+design change. See [IMPROVEMENT-BUDGET.md](IMPROVEMENT-BUDGET.md).
 
 ### Criterion inversion
 
-For each acceptance criterion, state its complement — what must **not** happen — and check whether
-any test asserts it. This turns "what bug would this still pass with?" from an instinct into a step.
-Its counterpart in the brief: **at least one acceptance criterion should be negative.**
+For each acceptance criterion, state its complement — what must **not** happen — and check whether any test
+asserts it. Its counterpart in the brief: **at least one acceptance criterion should be negative.**
 
 ### Refactor equivalence
 
-If a batch claims to preserve behaviour and the **test files changed**, that is a finding by
-definition. Behaviour-preserving means the existing tests pass *unchanged*.
+If a batch claims to preserve behaviour and the **test files changed**, that is a finding by definition.
 
 ### Regression-test-first
 
-Any unit that is a bug fix must show its new test **failing on the pre-fix tree**, with the failure
-output pasted. Without that, there is no evidence the test targets the bug rather than the fix.
+Any unit that is a bug fix must show its new test **failing on the pre-fix tree**, with the failure output
+pasted. Without that there is no evidence the test targets the bug rather than the fix.
 
 ### Blind-diff-first
 
-Read the diff and write your questions down **before** reading the child's report. The report is a
-map of where its author thinks the work is; reading it first anchors you there, and the defects are
-where they did not look. It costs nothing — it is an ordering rule, and it mirrors the one `/renew-loop`
-already imposes on reviewer notes.
+Read the diff and write your questions down **before** reading the child's report. The report maps where its
+author thinks the work is; the defects are where they did not look.
 
 ---
 
 ## Part 4 — The same check in each ecosystem
 
-Reference commands, not project truth: the project's real gate lives in
-[GATE-PROFILE.md](GATE-PROFILE.md). Flags marked *(plugin)* need a dependency the project may not
-have — if it is absent, say so in the brief and drop that check rather than adding a dependency for
-one review.
+Reference commands, not project truth: the project's real gate lives in [GATE-PROFILE.md](GATE-PROFILE.md).
+Flags marked *(plugin)* need a dependency the project may not have — if it is absent, say so in the brief and
+drop that check rather than adding a dependency for one review.
 
 ### Run one test by name
 
@@ -280,9 +249,6 @@ executed a thing.** Both belong in every gate profile's trap table.
 | pytest | `pytest --cov=<pkg> --cov-branch --cov-report=term-missing` | printed inline, per file, as line ranges |
 | Shell | `kcov` *(plugin)* — usually skip; read the branches by eye instead | — |
 
-`term-missing` and JaCoCo's XML both give the uncovered lines directly; there is no need for a
-percentage anywhere in this workflow.
-
 ### Type-check and lint
 
 | Ecosystem | Type / compile | Lint |
@@ -294,34 +260,30 @@ percentage anywhere in this workflow.
 
 ### Invariant / property testing *(plugin, all four)*
 
-`fast-check` (TS/JS) · `jqwik` or `junit-quickcheck` (Java) · `hypothesis` (Python) · none for shell —
-use a table-driven loop over the input domain instead.
+`fast-check` (TS/JS) · `jqwik` or `junit-quickcheck` (Java) · `hypothesis` (Python) · none for shell — use a
+table-driven loop over the input domain instead.
 
 ### Whole-suite mutation tools — optional, and usually not
 
 `Stryker` (TS/JS) · `PIT` (Java) · `mutmut` / `cosmic-ray` (Python). **Not part of the default flow**:
-minutes to hours per run, for marginal gain over two or three reviewer-chosen mutants. The one case
-that earns it is a Java module where PIT can be scoped to the changed classes
-(`-DtargetClasses=com.example.changed.*`) and the suite is fast — then it is a cheap second opinion
-on assertion strength, not a gate.
+minutes to hours per run, for marginal gain over two or three reviewer-chosen mutants. The one case that
+earns it is a Java module where PIT can be scoped to the changed classes
+(`-DtargetClasses=com.example.changed.*`) and the suite is fast.
 
 ### Shell-specific, because the language has no type system
 
 - `set -euo pipefail` at the top, or state why not. Its absence is a finding on any T2+ script.
-- A failure inside a pipeline is invisible without `pipefail` — the same trap the brief's tooling
-  probe warns about, now in production code.
-- Quote every expansion; `shellcheck` catches most of it, so a `# shellcheck disable=` added by the
-  change needs a stated reason.
-- `mktemp` plus a `trap … EXIT` for cleanup: a script that leaves temp state behind is a T3 concern,
-  not a style one.
+- A failure inside a pipeline is invisible without `pipefail`.
+- Quote every expansion; a `# shellcheck disable=` added by the change needs a stated reason.
+- `mktemp` plus a `trap … EXIT`: a script that leaves temp state behind is a T3 concern, not a style one.
 
 ## Part 5 — Signals you sized it wrong
 
-- A **reviewer-chosen mutant survives** — the criterion is unproved, and the tier that let you skip
-  the check was too low.
-- A **T0/T1 batch touches a file that writes to disk, spawns a process, or is registered with the
-  host** — it was T3 all along.
-- The diff **grew past the allowed-files table** — re-size before reviewing; the batch is not what
-  the brief described.
-- The **gate's skipped or todo count rose** — stop sizing and chase that first. A suite that did not
-  run makes every other check meaningless.
+- A **reviewer-chosen mutant survives** — the criterion is unproved, and the tier that let you skip the check
+  was too low.
+- A **T0/T1 batch touches a file that writes to disk, spawns a process, or is registered with the host** — it
+  was T3 all along.
+- The diff **grew past the allowed-files table** — re-size before reviewing; the batch is not what the brief
+  described.
+- The **gate's skipped or todo count rose** — stop sizing and chase that first. A suite that did not run makes
+  every other check meaningless.

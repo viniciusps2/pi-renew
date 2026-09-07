@@ -1,9 +1,8 @@
 # Brief template
 
-Fill in every section. A section with nothing to say gets one line saying so — an absent section
-reads as an oversight, and the sub-agent will fill the gap with a guess.
-
-Guidance lines are marked `>` and should be deleted from the finished brief.
+Fill in every section. A section with nothing to say gets one line saying so — an absent section reads
+as an oversight, and the sub-agent fills the gap with a guess. Guidance lines are marked `>` and are
+deleted from the finished brief.
 
 ---
 
@@ -29,8 +28,8 @@ this brief fixes decisions, the sources carry the detail.
 5. `<path/to/tests-you-will-change>` (the whole file).
 6. `<path/to/code-under-test>` lines ~N–M — the behaviour you are writing a test for.
 
-> Anchor every entry: a file alone sends it reading thousands of lines; a file plus §/line is a
-> two-minute read. Order matters — task, then authority, then twin, then types, then tests.
+> Anchor every entry: a file alone sends it reading thousands of lines, a file plus §/line is a
+> two-minute read. Order: task, authority, twin, types, tests.
 
 # Context
 
@@ -40,8 +39,7 @@ makes sense — no more.>
 
 # Design decisions ALREADY FIXED — do not re-litigate any of these
 
-> Numbered, each with its reason. Work through the categories in SKILL.md Phase 1. Typical
-> entries, as concrete as you can make them:
+> Numbered, each with its reason — work through SKILL.md's Phase 1 categories. Typical entries:
 
 1. **<Part of the task document that is stale.>** `<X>`, `<Y>` and `<Z>` already shipped in
    <earlier work> — `<file>` already contains `<symbol>`. **That part of the task file is stale.**
@@ -127,7 +125,7 @@ Tick each only when a test you can name proves it.
       exception>.
 
 > At least one criterion must be a number you measured yourself, on a clean tree, with the command
-> that prints it. That is the cheap, hard-to-fake proof that the suite ran.
+> that prints it — the cheap, hard-to-fake proof that the suite ran.
 
 # Commands
 
@@ -192,9 +190,9 @@ Follow the report contract in <path to REPORT-CONTRACT.md, or paste it inline>.
 Sections that never come out: the **Tier** line, **Read these FIRST**, **Design decisions ALREADY
 FIXED**, **Acceptance criteria**, **Constraints** (allowed-files table), **Report-back**.
 
-Sections that can collapse for a small, single-file task: fold **Context** into **Task**, and
-**Commands** into **Acceptance criteria**. Everything else stays — a short brief with no fixed
-decisions is the same coin flip as no brief at all.
+Collapsible on a small, single-file task: fold **Context** into **Task** and **Commands** into
+**Acceptance criteria**. Everything else stays — a short brief with no fixed decisions is the same coin
+flip as no brief at all.
 
 **Trim by tier, not by feel.** At **T0** the verification lines say so explicitly ("no kill-mutants,
 no coverage run, no probes — this batch changes no behaviour"), the improvement budget drops out, and

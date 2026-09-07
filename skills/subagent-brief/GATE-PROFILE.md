@@ -1,15 +1,11 @@
 # Gate profile
 
-Fill this in **once per project** and reuse it. Both skills read it: `subagent-brief` pastes the
-commands and floors into the brief, `subagent-review` re-runs them.
-
-Keep it next to the project's own baseline notes, or inline in this file if the project has none.
-Re-measure the baselines whenever they move — a stale floor is worse than no floor, because the
-sub-agent will report a discrepancy that does not exist and you will spend a cycle on it.
+Fill this in **once per project** and reuse it: `subagent-brief` pastes the commands and floors into
+the brief, `subagent-review` re-runs them. Re-measure the baselines whenever they move — a stale floor
+is worse than no floor, because the sub-agent reports a discrepancy that does not exist.
 
 A polyglot repository gets **one profile per gate**, not one per repository: a Java service and a
-TypeScript client in the same tree have different commands, different floors and different traps.
-Name which one a brief is using.
+TypeScript client have different commands, floors and traps. Name which one a brief is using.
 
 ---
 
@@ -33,9 +29,9 @@ Copy-pasteable, including where logs are written and how they are normalised bef
 <grep command>
 ```
 
-> List **every** type-check config, not the obvious ones. A project that grew configs over time
-> routinely ends up with source directories whose test files are transpiled but never type-checked
-> — a type error there is invisible to the whole gate.
+> List **every** type-check config, not just the obvious ones. A project that grew configs over time
+> ends up with source directories that are transpiled but never type-checked — a type error there is
+> invisible to the whole gate.
 
 ### Starting points per ecosystem
 
@@ -57,9 +53,8 @@ against.
 
 ## 2. Baselines — number **and** the command that prints it
 
-A number without its command is ambiguous. Ambiguity here is a guaranteed false discrepancy
-report, because an aggregate command and a scoped command answer different questions and both
-answers are correct.
+A number without its command is ambiguous, and ambiguity here is a guaranteed false discrepancy
+report: an aggregate command and a scoped command answer different questions, and both are correct.
 
 | Measurement | Value | Exact command that prints it |
 |---|---|---|
