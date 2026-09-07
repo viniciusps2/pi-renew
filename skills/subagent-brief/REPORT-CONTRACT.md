@@ -8,8 +8,8 @@ read the repository.
 
 A report written to this contract is not a narration of success. It is an **audit trail**: it
 tells the reviewer where to look, what to distrust, and which decisions were made without
-authority. Sections 3–6 exist because a green suite proves nothing about assertion strength, and
-because a sub-agent's silent choices are otherwise invisible until they cause a bug.
+authority. It does not make the report trustworthy — it makes it *checkable*; the verification
+still happens in `subagent-review`, against the diff and a gate you re-run yourself.
 
 **Scale it to the tier.** On a T0 batch sections 3, 4 and 9 are usually "none" and the report is
 half a page; on a T3 batch none of them are. Write "none" — never drop the heading, because an
@@ -139,20 +139,4 @@ Under the improvement budget in the brief. Three lists, each of which may be "no
 If you found nothing worth improving, "none" is a perfectly good answer. Do not manufacture one.
 ```
 
----
-
-## Why each added section exists (reviewer's note — do not paste)
-
-| Section | The failure it exposes |
-|---|---|
-| 3, kill-mutant | An assertion too weak to see the bug it is supposed to catch. A criterion whose mutant cannot be named is self-identifying as vacuous, before the reviewer opens the diff. |
-| 4, non-vacuity probes | Negative matchers that pass because the matcher silently does not apply to the value. Indistinguishable from a real pass by inspection; a positive control settles it in thirty seconds. |
-| 5, decision log | Silent guesses. These are invisible in a green run and surface much later as "why is it like this?" |
-| 6, deviation log | An override justified by a true premise but resolved in the wrong direction. Separating it from section 5 stops it being laundered as a gap-fill. |
-| 2, verbatim output | Numbers recalled rather than read, and suites that did not actually run. |
-| 8, review map | Reviewer attention spent uniformly across a diff instead of on the risky part — and the sub-agent usually knows which part that is. |
-| 8, "prove it ran" line | A pass line from a suite that executed nothing — a cached task, a zero-collection run, a skipped module. |
-| 9, improvements | A cleanup folded into the functional diff, so the review surface is two changes at once; or a real improvement dropped because nobody had authority to act. Splitting applied / proposed / escalated makes each one reviewable as what it is. |
-
-**None of these make the report trustworthy.** They make it *checkable*. The verification still
-happens in `subagent-review`, against the diff and a gate you re-run yourself.
+Why each section earns its place: `docs/subagent-skills.md`.
