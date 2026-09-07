@@ -123,9 +123,9 @@ work's name, so these two do not repeat it.
    `## Carried improvements`, name it in your report line, and carry on: an opportunity is never on the
    unit's critical path, so deferring one cannot make the unit wrong. A correctness finding, an
    ambiguity about intent, or a second escalation still stops the loop.
-10. Tick the unit, archive and rewrite the handover, and commit as Step 3 says — a 🔧 repair its own
-    commit before the unit's, a 🟢 improvement its own after it, so the unit's diff stays reviewable as
-    the unit.
+10. Tick the unit, archive and rewrite the handover, and commit + push as Step 3 says (push is default;
+    opt out with "no push"). A 🔧 repair its own commit before the unit's, a 🟢 improvement its own
+    after it, so the unit's diff stays reviewable as the unit.
 11. Then Step 4: stop, ask, or restart into the next unit's analyse half.
 
 Steps 1–5 are a rule about *order*, not only about which files get read: reviewer notes read earlier

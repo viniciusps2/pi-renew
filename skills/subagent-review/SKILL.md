@@ -175,8 +175,10 @@ fixed** — an out-of-scope problem the agent correctly reported is a note, not 
 - **Note anything that crossed a constraint**, even where you kept the result — evidence that the
   constraint is not enforcement, and that the next delegation should be reviewed on that basis.
 - **Re-run the gate after your own fixes**, not before.
-- **Do not commit unless asked.** If you do, the diff you reviewed and the diff you commit must be the same
-  one.
+- **Structured loop** (apply loop, renew-loop, checklist batches): landing is **commit + push**
+  (push is default; opt out with "no push"). The driver ticks, updates the handover, commits, pushes.
+  The diff you reviewed and the diff you commit must be the same one.
+- **Standalone review**: do not commit unless asked.
 
 ### Triage the improvements — yours and the agent's
 
