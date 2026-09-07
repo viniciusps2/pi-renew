@@ -59,7 +59,8 @@ pi install git:github.com/viniciusps2/pi-renew
 One entry in `~/.pi/agent/settings.json`; the `pi` manifest in [`package.json`](package.json)
 registers the extension, the `/renew-loop` prompt and the skills tree from it. Check with `/help` in
 a `pi` session — `/renew-loop`, `/pi-renew`, `/pi-renew-reminder-on`, `/pi-renew-reminder-off` and
-two `skill:` entries (`subagent-brief`, `subagent-review`) should be listed.
+three `skill:` entries (`renew-loop-brief-and-review`, `subagent-brief`, `subagent-review`) should be
+listed.
 
 Then turn on automatic high-context renewal, which is **off unless configured**, in
 `~/.pi/agent/pi-renew.json`:
@@ -299,6 +300,7 @@ ANALYSE turn                                     EXECUTE turn (fresh context)
 |---|---|
 | `/renew-loop` | the protocol: two turns per unit instead of one, both counted against the same budget |
 | the extension | the restart between the two halves — which is the point: the analysing session's context is **thrown away before the unit is executed** |
+| [`skills/renew-loop-brief-and-review`](skills/renew-loop-brief-and-review) | the mode's own procedure — the runner probe, the analyse half, the execute half. Loaded only while the mode is running, so a plain run never pays for it |
 | [`skills/subagent-brief`](skills/subagent-brief) | writes the brief a cold-start executor can carry out without rework — the preflight sweeps, the T0–T3 tier that sizes how much verification the unit earns, the decisions to settle up front, the nine-section structure, the improvement budget |
 | [`skills/subagent-review`](skills/subagent-review) | writes the reviewer notes *before the diff exists*, then reviews against them: re-runs the gate, audits the diff for what a green suite cannot catch, triages what is merely worth improving |
 | the runner | where the unit actually executes: the `subagent` tool from [`pi-subagents`](https://github.com/nicobailon/pi-subagents) if installed, else **this same session**, from the brief |
@@ -329,7 +331,7 @@ npm install -g @fission-ai/openspec     # spec-driven changes
 |---|---|---|
 | running a unit | `subagent` → `worker`, then a `reviewer` pass | the unit runs **in this session**, from the brief |
 | the task list | an OpenSpec `tasks.md`, used as it comes | any markdown checklist — the loop adds checkboxes if there are none |
-| brief and review | `subagent-brief`, `subagent-review` | the loop writes both itself, to the outlines in the protocol |
+| brief and review | `subagent-brief`, `subagent-review` | the loop writes both itself, to the outlines in `renew-loop-brief-and-review` |
 | the restart | `pi-renew` | No-restart mode — the turns run in one session, still bounded by the budget |
 
 ---
@@ -340,6 +342,7 @@ npm install -g @fission-ai/openspec     # spec-driven changes
 |---|---|
 | [`pi-extensions/pi-renew`](pi-extensions/pi-renew) | **the extension** — three tools (`renew_session`, `renew_from_handover`, `set_renewal_context`) and the `/pi-renew` command. Knows nothing about loops |
 | [`prompts/renew-loop.md`](prompts/renew-loop.md) | **the `/renew-loop` protocol** — work → hand over → restart, until a stop condition or the turn budget |
+| [`skills/renew-loop-brief-and-review`](skills/renew-loop-brief-and-review) | brief-and-review only — the two-turn procedure, kept out of the every-turn prompt |
 | [`skills/subagent-brief`](skills/subagent-brief) | brief-and-review only — writes the delegation brief |
 | [`skills/subagent-review`](skills/subagent-review) | brief-and-review only — reviews what came back |
 | [`index.ts`](index.ts) | a one-line re-export of the extension. The `pi` manifest points here so the Extensions list reads `viniciusps2/pi-renew` rather than the full path to the entry file |
@@ -354,6 +357,7 @@ the same extension serve callers with nothing to do with this protocol.
 |---|---|
 | [`docs/renew-loop.md`](docs/renew-loop.md) | **The loop, end to end** — setup, how to phrase a request, both restart triggers, the guards, troubleshooting, design notes |
 | [`pi-extensions/pi-renew/README.md`](pi-extensions/pi-renew/README.md) | **The extension reference** — the three tools, `/pi-renew`, restart strategies, payload assembly, state persistence, failure reporting, high-context reminders, model switching |
+| [`docs/subagent-skills.md`](docs/subagent-skills.md) | **Why the skills are shaped this way** — the rationale behind the brief, the report contract, the review and the lanes |
 | [`docs/STATUS.md`](docs/STATUS.md) | **What is actually proven** — the verification run, what is outstanding, the open decisions |
 | [`skills/subagent-brief/VERIFICATION-MENU.md`](skills/subagent-brief/VERIFICATION-MENU.md) | Which check earns its cost on which change — the T0–T3 tiers, per language |
 | [`skills/subagent-brief/IMPROVEMENT-BUDGET.md`](skills/subagent-brief/IMPROVEMENT-BUDGET.md) | What an agent may improve on its own authority (🟢), propose (🟡), escalate (🔴), or repair to unblock a unit (🔧) |

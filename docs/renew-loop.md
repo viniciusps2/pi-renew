@@ -27,6 +27,7 @@ the same extension and the same child runner serve callers that have nothing to 
 |---|---|---|
 | `/renew-loop` | a prompt template | the protocol: work → hand over → restart, until a stop condition or the budget |
 | `pi-renew` | an extension | a generic context-restart primitive; knows nothing about loops |
+| `renew-loop-brief-and-review` | a skill | **brief-and-review only** — the mode's two-turn procedure, loaded on demand so a plain run never carries it |
 | `subagent-brief`, `subagent-review` | skills | **brief-and-review only** — the brief the executor works from, and the notes the diff is reviewed against |
 | `pi-subagent`, `pi-subagent-rpc`, `pi-subagent-tmux` | skills, under `.claude/skills/` | drive a `pi` process from outside — for developing and testing this repo only, deliberately kept out of the `skills/` tree `pi` loads |
 | `pi-subagents`, OpenSpec | third-party, optional | better lanes for the same jobs — see [Optional companions](#optional-companions) |
@@ -203,13 +204,11 @@ the next run over different work finds a handover that validates on nothing, and
 stranger's state or writes over it — silently, since both are called "the handover". Carrying the work's
 name in the path makes that collision impossible to have.
 
-It searches the canonical path first, then `<task-list-dir>/handover-<slug>.md`, then the pre-rename
-locations (`.pi/loop/<slug>/handover.md`, `.pi/loop/handover.md`, `<task-list-dir>/handover.md`), and
-takes the candidate whose own `Work:` line names **this** task list or goal. A handover belonging to a
-different run is skipped, never merged. Two live candidates for the same list is an ambiguity it will not guess at:
-it stops and asks which. A handover found at one of the old paths is adopted and then **moved** to the
-canonical one, with its brief and notes. Nothing found → it creates the canonical path. Either way it
-tells you the path it resolved and whether it adopted, created or moved it, in its first report line.
+It searches the canonical path and `<task-list-dir>/handover-<slug>.md`, and takes the candidate whose
+own `Work:` line names **this** task list or goal. A handover belonging to a different run is skipped,
+never merged. Two live candidates for the same list is an ambiguity it will not guess at: it stops and
+asks which. Nothing found → it creates the canonical path. Either way it tells you the path it resolved
+and whether it adopted or created it, in its first report line.
 
 The search is deliberately the same every turn, because a restart replays your request verbatim — a
 discovery that could land somewhere else would hand the fresh session a different handover than the one
@@ -426,6 +425,11 @@ turn** reads only the handover and the brief, runs the unit, and *then* reads th
 diff against them — in that order, because notes read earlier bias how the work is framed instead of
 judging the result, and because the defects are where the executor did not look.
 
+The procedure itself lives in the **`renew-loop-brief-and-review` skill**, not in the prompt template:
+the loop loads it at the top of each turn of this mode, so a plain run — the common case — never pays
+for instructions it will not use. The template keeps only the trigger phrases, what the mode changes,
+and a floor to fall back on if the skill is missing.
+
 **It finds its runner first**, in this order, and records what it found in the handover's `Runner:`
 line:
 
@@ -461,7 +465,7 @@ it took.
 |---|---|---|---|
 | running a unit (brief-and-review) | [`pi-subagents`](https://github.com/nicobailon/pi-subagents) — `subagent` with `agent: "worker"`, and a `reviewer` child for a second opinion | — | the unit runs in this session, from the brief, under the same restricted reading |
 | the work's shape | [OpenSpec](https://github.com/Fission-AI/OpenSpec) — `openspec show/status/validate`, and `openspec archive` to apply the change when you ask for it | — | a markdown checklist, and the loop adds the checkboxes if the file has none |
-| brief and review | `subagent-brief`, `subagent-review` (this repo, installed with it) | — | the loop writes the brief and the notes itself, to the outlines in the protocol |
+| brief and review | `subagent-brief`, `subagent-review` (this repo, installed with it) | — | the loop writes the brief and the notes itself, to the outlines in `renew-loop-brief-and-review` |
 | the restart | `pi-renew` (this repo) | — | No-restart mode: the turns run in one session, still bounded |
 
 Two of those are worth installing if you are going to live in this loop:
@@ -663,6 +667,13 @@ you nothing but the word to continue.
 handover and repeating a turn's planning costs one turn. Failing toward executing a unit nobody analysed
 is not recoverable.
 
+**Why the mode's procedure is a skill and the protocol is a template.** The template is replayed into
+every restarted session, so everything in it is paid for on every turn of every run. The two-turn
+procedure is needed by one opt-in mode and by nothing else, and a skill is the only resource the model
+can load *when it needs it* — a second prompt template would become a second slash command, and a
+`docs/` file has no path the loop can resolve after installation. Rationale for the skills themselves
+is in [`subagent-skills.md`](subagent-skills.md), off the agent's path entirely.
+
 **Why the execute turn reads in that order.** Reviewer notes read before the unit runs bias how its task
 is framed instead of judging its result afterwards; reading anything beyond the handover and brief before
 running it re-derives exactly the context the brief exists to carry.
@@ -675,6 +686,8 @@ running it re-derives exactly the context the brief exists to carry.
 - [`../pi-extensions/pi-renew/README.md`](../pi-extensions/pi-renew/README.md) — the extension's own
   reference: the three tools, the `/pi-renew` command, restart strategies, payload assembly, config
 - [`STATUS.md`](STATUS.md) — what is proven, what is outstanding, and the open runtime-version decision
+- [`subagent-skills.md`](subagent-skills.md) — why the briefing and review skills are shaped the way they are
+- `skills/renew-loop-brief-and-review` — the mode's procedure, loaded only while the mode is running
 - `skills/subagent-brief`, `skills/subagent-review` — the briefing and review skills, used only in brief-and-review mode
 - `skills/subagent-brief/VERIFICATION-MENU.md` — which check earns its cost on which change (the
   T0–T3 tiers), and the command for it in each ecosystem

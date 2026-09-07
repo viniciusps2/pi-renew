@@ -41,7 +41,7 @@ Usage:
 One install registers everything from the package manifest:
   extension  ->  renew_session, renew_from_handover, set_renewal_context, /pi-renew
   prompts    ->  /renew-loop
-  skills     ->  subagent-brief, subagent-review,
+  skills     ->  renew-loop-brief-and-review, subagent-brief, subagent-review,
                  used only by /renew-loop's opt-in brief-and-review mode
 `);
   process.exit(0);
