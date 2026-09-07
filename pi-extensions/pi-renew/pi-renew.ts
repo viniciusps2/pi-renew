@@ -711,7 +711,7 @@ ${nextStepsAction}`;
   });
 
   const promptGuidelines = [
-    'ALWAYS call renew_session when the user asks to "renew the session", "start fresh", "hand off to a fresh session", "clean context", or "delegate to another agent" (the older wording), unless the extension injected a high-context reminder — then use renew_from_handover instead.',
+    'ALWAYS call renew_session when the user asks to "renew the session", "start fresh", "hand off to a fresh session", or "clean context", unless the extension injected a high-context reminder — then use renew_from_handover instead.',
     'Proactively call renew_session to renew the session ONLY when running in AUTO mode and the current phase is fully complete.',
     "Your summary replaces all old context. Be thorough — this is the ONLY context the renewed session will have, and include the task, plan, or report file it should open first when one exists.",
     "To make the next session adopt a specific persona or workflow, register it with set_renewal_context (prose, '/skill:<name> <args>' or '/<template> <args>') — renew_session has no persona parameter of its own.",
@@ -735,39 +735,33 @@ ${nextStepsAction}`;
       description: `Structured handover summary for the renewed session. Use this exact format:
 
 ## Goal
-[What is the user trying to accomplish — the overarching objective, not just this phase]
+[The overarching objective, not just this phase]
 
 ## Constraints & Preferences
-- [Requirements, tech choices, or preferences the user stated]
-- [Style, architecture, or workflow constraints]
+- [Requirements, tech choices, and style/architecture/workflow constraints the user stated]
 
 ## Progress
 ### Done
-- [x] [Completed task with specific details]
-- [x] [Files created/modified and what changed]
+- [x] [What was completed, and the files it changed]
 
 ### In Progress
-- [ ] [Partially completed work — describe current state]
+- [ ] [Partial work, and its current state]
 
 ### Blocked
-- [Issues preventing progress, if any]
+- [What is preventing progress, if anything]
 
 ## Key Decisions
 - **[Decision]**: [Brief rationale]
-- **[Decision]**: [Brief rationale]
 
 ## Next Steps
-1. [Most important next task]
-2. [Subsequent tasks in priority order]
-3. [Acceptance criteria if applicable]
+1. [Most important next task, then the rest in priority order, with acceptance criteria where they apply]
 
 ## Critical Context
-- [Data, examples, code snippets, references needed to continue]
-- [Environment setup, dependencies, API keys, or config details]
+- [Data, snippets, references, environment and config needed to continue]
 - [Edge cases discovered, error patterns observed]
-- [Task file, plan file, or temp report path the renewed session should open first]
+- [Task file, plan file, or report path the renewed session should open first]
 
-If a task file or plan file exists, update it before handing off and name it in the summary. If neither exists, create a temp \`.md\` report + plan, save it, and include that path in the summary.`,
+If a task or plan file exists, update it before handing off and name it here. If neither exists, create a temp \`.md\` report + plan, save it, and include that path.`,
     }),
     nextModel: Type.Optional(Type.String({
       description: "Model to switch to for the renewed session. Specify a model ID (e.g. 'Q3.5-27B') or a named alias (e.g. 'coding', 'reviewer') defined in ~/.pi/agent/pi-renew.json. Requires the config file to have models defined — see the pi-renew README for setup. If omitted, the current model is kept.",
@@ -779,7 +773,7 @@ If a task file or plan file exists, update it before handing off and name it in 
     // "new-session" default: design.md's migration plan keeps compact until batch 3C's
     // first green live newSession run. O15 tracks the flip — do not "fix" this default.
     strategy: Type.Optional(Type.String({
-      description: "Restart strategy: 'new-session' replaces the session via ctx.newSession() (the spec's eventual default); 'compact' compacts the current session in place. Currently defaults to 'compact' until the new-session path has a proven live run (see O15 in the implementation handover).",
+      description: "Restart strategy: 'new-session' replaces the session via ctx.newSession(); 'compact' compacts the current session in place. Only 'new-session' replays a registered renewal context. Defaults to 'compact'.",
     })),
   }, { additionalProperties: false });
 
